@@ -220,7 +220,38 @@ FactLens supports **incremental knowledge updates** (`POST /api/documents/{docum
 3. **Audit Immutability**:
    - Fact IDs, verbatim quote groundings, and creation timestamps for pre-existing documents remain strictly unchanged.
 
+---
 
+## 12. Multi-Document Knowledge Layers & Provenance Hierarchy
 
+FactLens structures all document analysis around **Knowledge Layers**:
 
+```
+KnowledgeLayer (e.g., "Delhivery FY24 Analysis")
+      │
+      ├── Document A (Prospectus 2022)
+      │     ├── Page 1 EvidenceUnit (Exact text & bounding box)
+      │     ├── Page 2 EvidenceUnit
+      │     └── ...
+      ├── Document B (Annual Report FY24)
+      │     ├── Page 1 EvidenceUnit
+      │     └── ...
+      └── Document C (Q4 FY24 Earnings Presentation)
+            └── ...
+```
 
+### Architectural Principles:
+1. **First-Class Multi-Document Grouping**:
+   - A `KnowledgeLayer` represents an independent research collection.
+   - Multiple documents within a knowledge layer are analyzed together for cross-document corroboration, contradiction, and context reconciliation.
+   - Independent knowledge layers (e.g. "Delhivery" vs "India Macroeconomy") remain strictly isolated.
+
+2. **Per-Document Independent Processing**:
+   - Multi-file uploads (`POST /api/knowledge-layers/{id}/documents`) process each PDF independently.
+   - If one PDF in a batch fails (e.g., corrupt file or invalid structure), its status is recorded as `FAILED` while remaining valid PDFs process to `COMPLETED` status.
+   - Failure of one document does NOT invalidate the entire knowledge layer.
+
+3. **Strict Four-Tier Provenance Traceability**:
+   - Every evidence unit maintains a deterministic hierarchy:
+     `KnowledgeLayer` $\rightarrow$ `Document` $\rightarrow$ `Page Number` $\rightarrow$ `Exact Source Text`.
+   - Extracted facts inherit this exact provenance, preventing cross-document page misattribution or quote paraphrasing.

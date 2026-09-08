@@ -48,8 +48,26 @@ FactLens provides an **evidence-first document intelligence architecture** that 
   3. `CONTEXTUALLY_RECONCILED`: Surface differences explained by timeframe, scope, or currency.
   4. `REASONING_FAILURE`: Ambiguous context or ungrounded evidence.
 - **Discrete Semantic Confidence Tiers**: Classifies confidence into discrete semantic tiers (`HIGH`, `MEDIUM`, `LOW`) with explicit `needs_review` flags rather than presenting false mathematical probabilities.
+- **Multi-Document Knowledge Layers**: Group related documents into research collections (e.g. "Delhivery FY24 Analysis" or "India Macroeconomy") to compare scattered claims across files.
 - **Incremental Knowledge Processing**: Processes new PDF uploads incrementally (`POST /api/documents/{id}/process_incremental`) against existing database knowledge without re-extracting or re-processing previously ingested documents.
 - **Structured Error Logging**: Automatically redacts API keys (`OPENAI_API_KEY`, `Bearer`, `sk-...`) from all application log traces.
+
+### Multi-Document Knowledge Layer Structure
+
+FactLens supports creating independent Knowledge Layers that group multiple related PDF filings together:
+
+```
+KnowledgeLayer (e.g. "Delhivery FY24 Analysis")
+├── Document A (Prospectus 2022)
+│   ├── Page 1 evidence
+│   ├── Page 2 evidence
+│   └── ...
+├── Document B (Annual Report FY24)
+│   ├── Page 1 evidence
+│   └── ...
+└── Document C (Q4 FY24 Earnings Presentation)
+    └── ...
+```
 
 ---
 
@@ -337,7 +355,13 @@ EMBEDDING_PROVIDER=mock
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/documents` | Upload a PDF file (max 50MB, SHA-256 hash checked). |
+| `POST` | `/api/knowledge-layers` | Create a new Knowledge Layer. |
+| `GET` | `/api/knowledge-layers` | List all Knowledge Layers. |
+| `GET` | `/api/knowledge-layers/{id}` | Get Knowledge Layer details and document list. |
+| `DELETE` | `/api/knowledge-layers/{id}` | Delete Knowledge Layer and its documents. |
+| `POST` | `/api/knowledge-layers/{id}/documents` | Upload 1 or MULTIPLE PDF files to a Knowledge Layer. |
+| `GET` | `/api/knowledge-layers/{id}/documents` | List all documents belonging to a Knowledge Layer. |
+| `POST` | `/api/documents` | Upload a single PDF file (max 50MB, SHA-256 hash checked). |
 | `GET` | `/api/documents` | List all uploaded PDF documents. |
 | `GET` | `/api/documents/{id}` | Get document metadata and evidence units. |
 | `POST` | `/api/documents/{id}/extract` | Trigger grounded fact extraction on a document. |

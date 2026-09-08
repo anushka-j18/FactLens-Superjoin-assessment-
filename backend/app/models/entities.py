@@ -6,10 +6,24 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
 
+class KnowledgeLayer(Base):
+    __tablename__ = "knowledge_layers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="knowledge_layer", cascade="all, delete-orphan")
+
+
 class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    knowledge_layer_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("knowledge_layers.id", ondelete="CASCADE"), nullable=True, index=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -22,6 +36,7 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
+    knowledge_layer: Mapped[Optional["KnowledgeLayer"]] = relationship("KnowledgeLayer", back_populates="documents")
     evidence_units: Mapped[List["EvidenceUnit"]] = relationship("EvidenceUnit", back_populates="document", cascade="all, delete-orphan")
     facts: Mapped[List["Fact"]] = relationship("Fact", back_populates="document", cascade="all, delete-orphan")
 

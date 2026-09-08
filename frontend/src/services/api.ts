@@ -8,8 +8,19 @@ export interface DocumentItem {
   processing_status: string;
   extraction_status: string;
   error_message?: string | null;
+  knowledge_layer_id?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface KnowledgeLayerItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+  document_count: number;
+  documents?: DocumentItem[];
 }
 
 export interface EvidenceUnit {
@@ -206,5 +217,53 @@ export async function fetchRelationships(params?: { relationship_type?: string; 
 export async function fetchEvaluationMetrics(): Promise<EvaluationMetrics> {
   const res = await fetch(`${API_BASE}/api/evaluation/metrics`);
   if (!res.ok) throw new Error(`Failed to fetch evaluation metrics: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchKnowledgeLayers(): Promise<KnowledgeLayerItem[]> {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers`);
+  if (!res.ok) throw new Error(`Failed to fetch knowledge layers: ${res.status}`);
+  const data = await res.json();
+  return data.knowledge_layers || [];
+}
+
+export async function createKnowledgeLayer(name: string, description?: string): Promise<KnowledgeLayerItem> {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create knowledge layer' }));
+    throw new Error(err.detail || 'Failed to create knowledge layer');
+  }
+  return res.json();
+}
+
+export async function fetchKnowledgeLayerDetails(id: string): Promise<KnowledgeLayerItem> {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch knowledge layer ${id}: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteKnowledgeLayer(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to delete knowledge layer: ${res.status}`);
+}
+
+export async function uploadDocumentsToKnowledgeLayer(klId: string, files: File[]): Promise<DocumentItem[]> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+
+  const res = await fetch(`${API_BASE}/api/knowledge-layers/${klId}/documents`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Batch upload failed' }));
+    throw new Error(errData.detail || `Upload failed with status ${res.status}`);
+  }
+
   return res.json();
 }

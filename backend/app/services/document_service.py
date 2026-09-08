@@ -29,7 +29,13 @@ class DocumentService:
         os.makedirs(STORAGE_DIR, exist_ok=True)
 
     @classmethod
-    def process_pdf_upload(cls, db: Session, file_bytes: bytes, original_filename: str) -> Document:
+    def process_pdf_upload(
+        cls,
+        db: Session,
+        file_bytes: bytes,
+        original_filename: str,
+        knowledge_layer_id: Optional[str] = None
+    ) -> Document:
         """Validate, store, and create DB record for an uploaded PDF file."""
         cls.ensure_storage_dir()
 
@@ -45,7 +51,10 @@ class DocumentService:
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
         # 3. Check for existing duplicate document in DB
-        existing_doc = db.query(Document).filter(Document.file_hash == file_hash).first()
+        query = db.query(Document).filter(Document.file_hash == file_hash)
+        if knowledge_layer_id:
+            query = query.filter(Document.knowledge_layer_id == knowledge_layer_id)
+        existing_doc = query.first()
         if existing_doc:
             raise DuplicateDocumentError(existing_doc)
 
@@ -63,6 +72,7 @@ class DocumentService:
         # 6. Create Document record in DB with 'uploaded' status
         doc_record = Document(
             id=doc_id,
+            knowledge_layer_id=knowledge_layer_id,
             filename=stored_filename,
             original_filename=original_filename,
             file_size=file_size,
@@ -82,9 +92,11 @@ class DocumentService:
         return db.query(Document).filter(Document.id == document_id).first()
 
     @staticmethod
-    def list_documents(db: Session, skip: int = 0, limit: int = 50) -> Tuple[int, List[Document]]:
+    def list_documents(db: Session, skip: int = 0, limit: int = 50, knowledge_layer_id: Optional[str] = None) -> Tuple[int, List[Document]]:
         """List documents sorted by created_at descending."""
         query = db.query(Document)
+        if knowledge_layer_id:
+            query = query.filter(Document.knowledge_layer_id == knowledge_layer_id)
         total = query.count()
         documents = query.order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
         return total, documents

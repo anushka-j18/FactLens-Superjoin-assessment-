@@ -2,8 +2,8 @@ import React from 'react';
 import { Layers, FileText, CheckSquare, GitCompare, Activity, Plus } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'overview' | 'documents' | 'facts' | 'relationships' | 'evaluation';
-  setActiveTab: (tab: 'overview' | 'documents' | 'facts' | 'relationships' | 'evaluation') => void;
+  activeTab: 'overview' | 'knowledge-layers' | 'documents' | 'facts' | 'relationships' | 'evaluation';
+  setActiveTab: (tab: 'overview' | 'knowledge-layers' | 'documents' | 'facts' | 'relationships' | 'evaluation') => void;
   onUploadClick: () => void;
   apiStatus: 'online' | 'offline' | 'loading';
   providerName?: string;
@@ -31,6 +31,14 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Layers size={14} />
             <span>Overview</span>
+          </button>
+
+          <button
+            className={`nav-btn ${activeTab === 'knowledge-layers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('knowledge-layers')}
+          >
+            <Layers size={14} />
+            <span>Knowledge Layers</span>
           </button>
 
           <button

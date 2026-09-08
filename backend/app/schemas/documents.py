@@ -17,6 +17,7 @@ class EvidenceUnitResponse(BaseModel):
 
 class DocumentResponse(BaseModel):
     id: str
+    knowledge_layer_id: Optional[str] = None
     filename: str
     original_filename: str
     file_size: int

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Overview } from './components/Overview';
+import { KnowledgeLayerList } from './components/KnowledgeLayerList';
+import { KnowledgeLayerDetail } from './components/KnowledgeLayerDetail';
 import { DocumentList } from './components/DocumentList';
 import { DocumentDetail } from './components/DocumentDetail';
 import { FactList } from './components/FactList';
@@ -14,22 +16,29 @@ import {
   fetchFacts,
   fetchRelationships,
   fetchEvaluationMetrics,
+  fetchKnowledgeLayers,
   extractDocumentFacts,
   analyzeRelationships,
   DocumentItem,
   FactItem,
   FactRelationship,
   EvaluationMetrics,
+  KnowledgeLayerItem,
 } from './services/api';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'facts' | 'relationships' | 'evaluation'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'knowledge-layers' | 'documents' | 'facts' | 'relationships' | 'evaluation'
+  >('knowledge-layers');
+
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedKnowledgeLayerId, setSelectedKnowledgeLayerId] = useState<string | null>(null);
   const [isUploaderOpen, setIsUploaderOpen] = useState<boolean>(false);
 
   const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'loading'>('loading');
   const [providerName, setProviderName] = useState<string>('Mock');
 
+  const [knowledgeLayers, setKnowledgeLayers] = useState<KnowledgeLayerItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [facts, setFacts] = useState<FactItem[]>([]);
   const [relationships, setRelationships] = useState<FactRelationship[]>([]);
@@ -37,13 +46,15 @@ export default function App() {
 
   const loadAllData = async () => {
     try {
-      const [docsData, factsData, relsData, metricsData] = await Promise.all([
+      const [klData, docsData, factsData, relsData, metricsData] = await Promise.all([
+        fetchKnowledgeLayers().catch(() => []),
         fetchDocuments().catch(() => []),
         fetchFacts().catch(() => []),
         fetchRelationships().catch(() => []),
         fetchEvaluationMetrics().catch(() => null),
       ]);
 
+      setKnowledgeLayers(klData);
       setDocuments(docsData);
       setFacts(factsData);
       setRelationships(relsData);
@@ -91,6 +102,7 @@ export default function App() {
         setActiveTab={(tab) => {
           setActiveTab(tab);
           setSelectedDocumentId(null);
+          setSelectedKnowledgeLayerId(null);
         }}
         onUploadClick={() => setIsUploaderOpen(true)}
         apiStatus={apiStatus}
@@ -104,6 +116,12 @@ export default function App() {
             documentId={selectedDocumentId}
             onBack={() => setSelectedDocumentId(null)}
           />
+        ) : selectedKnowledgeLayerId ? (
+          <KnowledgeLayerDetail
+            knowledgeLayerId={selectedKnowledgeLayerId}
+            onBack={() => setSelectedKnowledgeLayerId(null)}
+            onSelectDocument={(id) => setSelectedDocumentId(id)}
+          />
         ) : activeTab === 'overview' ? (
           <Overview
             documents={documents}
@@ -115,6 +133,12 @@ export default function App() {
             onSelectFact={() => setActiveTab('facts')}
             onRefresh={loadAllData}
             onUploadClick={() => setIsUploaderOpen(true)}
+          />
+        ) : activeTab === 'knowledge-layers' ? (
+          <KnowledgeLayerList
+            knowledgeLayers={knowledgeLayers}
+            onSelectKnowledgeLayer={(id) => setSelectedKnowledgeLayerId(id)}
+            onRefresh={loadAllData}
           />
         ) : activeTab === 'documents' ? (
           <DocumentList
