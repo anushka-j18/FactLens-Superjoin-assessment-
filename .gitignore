@@ -34,6 +34,8 @@ wheels/
 *.sqlite
 *.sqlite3
 backend/factlens.db
+backend/storage/
+
 
 # Node / Frontend
 node_modules/

@@ -77,6 +77,32 @@ For a detailed breakdown of the system architecture, boundaries, database entity
 
 ---
 
+## PDF Ingestion & Evidence Extraction Pipeline
+
+FactLens uses a deterministic parsing pipeline powered by PyMuPDF (`fitz`) to extract raw text and location metadata page-by-page.
+
+### Processing Workflow
+1. **Upload & Validation** (`POST /api/documents`):
+   - Accepts `.pdf` files up to 50MB.
+   - Validates `%PDF` binary header and PyMuPDF structure integrity.
+   - Computes SHA-256 hash to detect duplicate documents (returns HTTP 409 Conflict if duplicate).
+2. **Document Lifecycle States**:
+   - `uploaded`: File saved on disk under `backend/storage/uploads/` with UUID filename.
+   - `processing`: PyMuPDF parses page-by-page.
+   - `completed`: All pages extracted into `EvidenceUnit` database records.
+   - `failed`: Capture error message if file is corrupted or empty.
+3. **Evidence Unit Provenance**:
+   - Stores 1-indexed `page_number`, exact `raw_text`, normalized `clean_text`, and JSON `location_metadata` (page dimensions & block-level bounding boxes).
+   - Source text is never paraphrased or lost.
+
+### API Endpoints
+- `POST /api/documents`: Upload a PDF file.
+- `GET /api/documents`: List all uploaded documents with status and metadata.
+- `GET /api/documents/{document_id}`: Get metadata and page evidence units for a document.
+- `GET /api/documents/{document_id}/evidence`: Retrieve page-level evidence units.
+
+---
+
 ## Starter Datasets
 
 The repository includes two curated starter datasets under `data/starter-datasets/`:

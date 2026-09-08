@@ -16,6 +16,7 @@ dependencies = [
     "sqlalchemy>=2.0.28",
     "pymupdf>=1.23.26",
     "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.9",
 ]
 
 [tool.pytest.ini_options]
