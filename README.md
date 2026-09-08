@@ -163,6 +163,16 @@ FactLens uses a 2-stage retrieval strategy to efficiently match candidate facts 
 
 ---
 
+## Incremental Document Processing & Knowledge Updates
+
+FactLens supports **incremental processing** (`POST /api/documents/{document_id}/process_incremental`) when adding new documents to an existing knowledge base:
+
+1. **Zero Re-Extraction**: Ingesting Document B extracts facts **only** for Document B. Existing facts from Document A remain untouched.
+2. **Targeted Knowledge Pairing**: Newly extracted facts are compared against existing facts across prior documents ($O(K \cdot N)$ complexity).
+3. **Immutable Provenance**: Fact IDs and creation timestamps for older documents remain strictly unchanged.
+
+---
+
 ## Reliability, Failure Handling & Honest Auditing
 
 FactLens prioritizes honesty and audit transparency when extraction or reasoning is uncertain:

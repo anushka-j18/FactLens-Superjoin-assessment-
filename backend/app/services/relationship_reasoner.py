@@ -80,6 +80,56 @@ class RelationshipReasonerService:
         return created_relationships
 
     @classmethod
+    def analyze_incremental_document_relationships(
+        cls,
+        db: Session,
+        new_document_id: str
+    ) -> List[FactRelationship]:
+        """Incremental reasoning: Compare newly extracted facts against existing knowledge without re-processing older documents."""
+        new_facts = (
+            db.query(Fact)
+            .filter(Fact.document_id == new_document_id, Fact.extraction_status == "grounded")
+            .all()
+        )
+        if not new_facts:
+            return []
+
+        existing_facts = (
+            db.query(Fact)
+            .filter(Fact.document_id != new_document_id, Fact.extraction_status == "grounded")
+            .all()
+        )
+        if not existing_facts:
+            return []
+
+        created_relationships: List[FactRelationship] = []
+        seen_pairs = set()
+
+        for nf in new_facts:
+            for ef in existing_facts:
+                pair_key = tuple(sorted([nf.id, ef.id]))
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                dict1 = cls._fact_to_dict(nf)
+                dict2 = cls._fact_to_dict(ef)
+                comp = FactNormalizer.are_facts_comparable(dict1, dict2)
+
+                if comp["is_comparable"]:
+                    rel = cls._classify_fact_pair(db, nf, ef, comp)
+                    if rel:
+                        db.add(rel)
+                        created_relationships.append(rel)
+
+        db.commit()
+
+        for rel in created_relationships:
+            db.refresh(rel)
+
+        return created_relationships
+
+    @classmethod
     def _classify_fact_pair(
         cls,
         db: Session,

@@ -206,8 +206,20 @@ FactLens decouples candidate retrieval (Phase 5) from relationship reasoning (Ph
      - **Stage 3 (Targeted Relationship Classification)**: Only top-K candidate pairs are passed to the 4-case classifier engine.
 2. **Modular Provider Replaceability**:
    - Vector embedding providers (`EmbeddingProvider`) can be updated, re-indexed, or tuned independently from LLM decision models (`LLMProvider`).
-3. **Auditability & Explainability**:
-   - Dissecting retrieval from reasoning allows inspecting candidate search results (`GET /api/facts/{fact_id}/candidates`) with explicit similarity scores and matching criteria prior to performing non-reversible state updates or final 4-case classification.
+## 11. Incremental Document Processing & Linear Scaling
+
+FactLens supports **incremental knowledge updates** (`POST /api/documents/{document_id}/process_incremental`) when new PDF filings are added to an existing knowledge base.
+
+### Scalability & Design Decision
+1. **Zero Re-Extraction ($O(K \cdot N)$ Linear Complexity)**:
+   - When Document B is uploaded into a system already containing Document A, FactLens extracts facts **only** for Document B.
+   - Previously extracted facts and evidence units from Document A remain immutable and are **not** re-extracted or re-processed.
+2. **Targeted Knowledge Pairing**:
+   - Newly extracted facts from Document B are paired against the existing knowledge layer (Document A facts) using 2-stage candidate matching.
+   - New `FactRelationship` records are generated and persisted without re-evaluating pre-existing relationships between older documents.
+3. **Audit Immutability**:
+   - Fact IDs, verbatim quote groundings, and creation timestamps for pre-existing documents remain strictly unchanged.
+
 
 
 

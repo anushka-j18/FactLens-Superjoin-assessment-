@@ -131,3 +131,51 @@ def get_document_evidence(
         )
         
     return EvidenceService.get_evidence_by_document(db, document_id)
+
+
+from app.services.fact_extractor import FactExtractorService
+from app.services.candidate_matcher import CandidateMatcherService
+from app.services.relationship_reasoner import RelationshipReasonerService
+
+
+@router.post("/{document_id}/process_incremental")
+def process_document_incremental(
+    document_id: str,
+    db: Session = Depends(get_db),
+):
+    """Incrementally process a newly ingested PDF document against existing knowledge.
+    
+    Extracts facts only for this document, generates embeddings, and compares new claims against 
+    existing facts across prior documents without re-extracting or re-evaluating older files.
+    """
+    doc = DocumentService.get_document_by_id(db, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+
+    # 1. Fact Extraction for new document ONLY
+    ext_status, new_facts, rejected_count = FactExtractorService.extract_facts_from_document(
+        db=db,
+        document_id=document_id,
+    )
+
+    # 2. Vector Embedding Generation for new facts
+    for fact in new_facts:
+        CandidateMatcherService.generate_and_store_embedding(db, fact)
+
+    # 3. Incremental Relationship Reasoning against existing knowledge base
+    new_relationships = RelationshipReasonerService.analyze_incremental_document_relationships(
+        db=db,
+        new_document_id=document_id,
+    )
+
+    return {
+        "document_id": document_id,
+        "status": "completed",
+        "new_facts_extracted": len(new_facts),
+        "rejected_facts": rejected_count,
+        "new_relationships_formed": len(new_relationships),
+        "new_relationships": new_relationships,
+    }
