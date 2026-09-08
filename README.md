@@ -135,6 +135,22 @@ FactLens normalizes equivalent representations without losing context:
 
 ---
 
+## Cross-Document Relationship Reasoning Engine (4 Mandatory Cases)
+
+FactLens pairs candidate facts across distinct documents and classifies each relationship into one of four mandatory outcome categories:
+
+1. **`CORROBORATED`**: Facts with matching subjects, predicates, timeframes, and consistent values across documents.
+2. **`CONTRADICTED`**: Facts with matching subjects, predicates, and timeframes, but mutually exclusive numerical values or conflicting statements.
+3. **`CONTEXTUALLY_RECONCILED`**: Surface discrepancies resolved by temporal scope (FY22 vs FY24), operating scope (Standalone vs Consolidated), or currencies.
+4. **`REASONING_FAILURE`**: Ambiguous evidence or low extraction confidence preventing explicit linking.
+
+### Relationship API Endpoints
+- `POST /api/relationships/analyze`: Run cross-document relationship analysis.
+- `GET /api/relationships`: List all analyzed relationships with filters (`relationship_type`, `document_id`).
+- `GET /api/relationships/{relationship_id}`: Retrieve single relationship details with source/target evidence quotes.
+
+---
+
 ## Starter Datasets
 
 The repository includes two curated starter datasets under `data/starter-datasets/`:

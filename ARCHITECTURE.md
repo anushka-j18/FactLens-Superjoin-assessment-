@@ -147,29 +147,50 @@ LLMs are prone to hallucinations, including inventing non-existent evidence IDs,
 3. **Deterministic Value Normalization**: Raw numeric strings (e.g. `₹4,600 Cr`, `$12.4 million`, `14%`) are normalized into standard float values (e.g. `46000000000.0`, `12400000.0`, `0.14`) deterministically by backend code rather than relying on LLM arithmetic.
 
 
-## 8. Fact Normalization & Context Preservation Strategy
+## 9. Cross-Document Relationship Reasoning Strategy (4 Mandatory Cases)
 
-FactLens implements a zero-LLM deterministic normalization layer (`FactNormalizer`) designed to make semantically equivalent facts comparable while guaranteeing that contextual dimensions (temporal scope, geographic scope, operating scope, currency) are preserved.
+FactLens pairs candidate facts across distinct documents and classifies each relationship into exactly one of four core outcome categories.
 
-### Core Principles
-1. **Deterministic Scale Parsing**:
-   - Indian scales: `Cr` / `Crore` ($\times 10^7$), `Lakh` / `Lac` ($\times 10^5$).
-   - Western scales: `K` / `Thousand` ($\times 10^3$), `M` / `Million` ($\times 10^6$), `B` / `Billion` ($\times 10^9$), `T` / `Trillion` ($\times 10^{12}$).
-   - Percentages: `14%` / `14 percent` $\rightarrow `0.14`.
-2. **Currency Standardization**:
-   - `$` / `USD` / `US$` $\rightarrow$ `USD`.
-   - `₹` / `INR` / `Rs` $\rightarrow$ `INR`.
-   - `€` / `EUR` $\rightarrow$ `EUR`.
-   - `£` / `GBP` $\rightarrow$ `GBP`.
-3. **Temporal Period Normalization**:
-   - `FY24`, `FY 2024`, `2023-24` $\rightarrow$ Canonical `FY2024`.
-   - `Q1 FY24`, `Q1 2024` $\rightarrow$ Canonical `Q1 FY2024`.
-   - `2024` $\rightarrow$ Canonical `CY2024`.
-4. **Context Preservation & Non-Collapsing Guarantee**:
-   - Facts reporting the same numerical value in different timeframes (e.g. `$10M in FY2024` vs `$10M in Q1 2024`) remain **distinct facts**.
-   - Facts reporting the same numerical value in different geographic scopes (e.g. `$10M in North America` vs `$10M globally`) remain **distinct facts**.
-5. **Comparability Engine (`are_facts_comparable`)**:
-   - Evaluates subject & predicate alias resolution.
-   - Evaluates whether temporal/geographic contexts match (`True`), differ (`False`), or are unknown (`None`).
+```
+                  ┌─────────────────────────────────────┐
+                  │ Candidate Fact Pair across Docs A&B │
+                  └──────────────────┬──────────────────┘
+                                     │
+                  ┌──────────────────▼──────────────────┐
+                  │ FactNormalizer.are_facts_comparable │
+                  └──────────────────┬──────────────────┘
+                                     │
+           ┌─────────────────────────┼─────────────────────────┐
+           │                         │                         │
+┌──────────▼──────────┐   ┌──────────▼──────────┐   ┌──────────▼──────────┐
+│   Values & Context  │   │  Values Conflict,   │   │  Values Differ, but │
+│    Match Exactly    │   │  Period/Scope Match │   │ Period/Scope Differ │
+└──────────┬──────────┘   └──────────┬──────────┘   └──────────┬──────────┘
+           │                         │                         │
+┌──────────▼──────────┐   ┌──────────▼──────────┐   ┌──────────▼──────────┐
+│    CORROBORATED     │   │     CONTRADICTED    │   │     CONTEXTUALLY    │
+│                     │   │                     │   │     RECONCILED      │
+└─────────────────────┘   └─────────────────────┘   └─────────────────────┘
+                                                               │
+                                                    If evidence is ungrounded
+                                                    or confidence < 0.5:
+                                                    ┌─────────────────────┐
+                                                    │  REASONING_FAILURE  │
+                                                    └─────────────────────┘
+```
+
+### Detailed 4-Case Category Specifications
+1. **`CORROBORATED`**:
+   - Both documents report consistent numerical values or assertions for the same subject, predicate, and temporal/geographic scope.
+   - *Example*: Document A and Document B both state Delhivery FY24 Revenue was `INR 4,600 Cr`.
+2. **`CONTRADICTED`**:
+   - Documents report mutually exclusive numerical values or assertions for the exact same subject, predicate, timeframe, and operating scope.
+   - *Example*: Document A states FY24 Revenue was `INR 4,600 Cr` while Document B states `INR 5,200 Cr` for the same entity and fiscal year.
+3. **`CONTEXTUALLY_RECONCILED`**:
+   - Surface discrepancies between numbers or statements are resolved by contextual factors such as different reporting periods (FY22 vs FY24), operating scopes (Standalone vs Consolidated), or currencies (`INR` vs `USD`).
+   - *Example*: Document A lists FY22 Revenue as `INR 3,800 Cr` while Document B lists FY24 Revenue as `INR 4,600 Cr`. Both are true within their respective fiscal scopes.
+4. **`REASONING_FAILURE`**:
+   - Evidence confidence is below threshold, text is ambiguous, or verbatim quotes cannot be verified against source text. Preserves audit transparency rather than asserting false links.
+
 
 

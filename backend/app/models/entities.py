@@ -69,9 +69,28 @@ class Fact(Base):
     # Metadata & Quality Assurance
     is_inferred: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     extraction_confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
-    extraction_status: Mapped[str] = mapped_column(String(32), default="grounded", nullable=False)  # grounded | unverified | rejected
+    extraction_status: Mapped[str] = mapped_column(String(32), default="grounded", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     document: Mapped["Document"] = relationship("Document", back_populates="facts")
     evidence_unit: Mapped["EvidenceUnit"] = relationship("EvidenceUnit", back_populates="facts")
+
+
+class FactRelationship(Base):
+    __tablename__ = "fact_relationships"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    source_fact_id: Mapped[str] = mapped_column(String(36), ForeignKey("facts.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_fact_id: Mapped[str] = mapped_column(String(36), ForeignKey("facts.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Category: CORROBORATED | CONTRADICTED | CONTEXTUALLY_RECONCILED | REASONING_FAILURE
+    relationship_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    confidence_score: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    reasoning_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    reconciliation_context: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    source_fact: Mapped["Fact"] = relationship("Fact", foreign_keys=[source_fact_id])
+    target_fact: Mapped["Fact"] = relationship("Fact", foreign_keys=[target_fact_id])

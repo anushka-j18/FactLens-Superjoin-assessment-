@@ -10,6 +10,12 @@ from app.schemas.facts import (
     FactListResponse,
     FactExtractionResponse,
 )
+from app.schemas.relationships import (
+    RelationshipResponse,
+    RelationshipListResponse,
+    RelationshipAnalysisRequest,
+    RelationshipAnalysisResponse,
+)
 
 __all__ = [
     "DocumentResponse",
@@ -19,4 +25,8 @@ __all__ = [
     "FactResponse",
     "FactListResponse",
     "FactExtractionResponse",
+    "RelationshipResponse",
+    "RelationshipListResponse",
+    "RelationshipAnalysisRequest",
+    "RelationshipAnalysisResponse",
 ]
