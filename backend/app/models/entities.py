@@ -75,6 +75,18 @@ class Fact(Base):
     # Relationships
     document: Mapped["Document"] = relationship("Document", back_populates="facts")
     evidence_unit: Mapped["EvidenceUnit"] = relationship("EvidenceUnit", back_populates="facts")
+    embedding: Mapped[Optional["FactEmbedding"]] = relationship("FactEmbedding", back_populates="fact", cascade="all, delete-orphan", uselist=False)
+
+
+class FactEmbedding(Base):
+    __tablename__ = "fact_embeddings"
+
+    fact_id: Mapped[str] = mapped_column(String(36), ForeignKey("facts.id", ondelete="CASCADE"), primary_key=True)
+    vector: Mapped[List[float]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    fact: Mapped["Fact"] = relationship("Fact", back_populates="embedding")
 
 
 class FactRelationship(Base):

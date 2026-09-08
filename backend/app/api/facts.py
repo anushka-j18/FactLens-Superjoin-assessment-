@@ -120,3 +120,52 @@ def get_document_facts(
         .order_by(Fact.page_number.asc(), Fact.created_at.asc())
         .all()
     )
+
+
+from app.schemas.candidates import CandidateListResponse
+from app.services.candidate_matcher import CandidateMatcherService, CandidateMatcherError
+
+
+@router.get("/api/facts/{fact_id}/candidates", response_model=CandidateListResponse)
+def get_fact_candidates(
+    fact_id: str,
+    limit: int = 10,
+    min_similarity: float = 0.5,
+    db: Session = Depends(get_db),
+):
+    """Retrieve top candidate matching facts across distinct documents based on 2-stage matching.
+    
+    1. Deterministic metadata pre-filtering (subject & predicate matching).
+    2. Cosine vector similarity ranking using dense embeddings.
+    """
+    fact = db.query(Fact).filter(Fact.id == fact_id).first()
+    if not fact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Fact with ID '{fact_id}' not found."
+        )
+
+    try:
+        candidates = CandidateMatcherService.find_candidate_matches(
+            db=db,
+            target_fact_id=fact_id,
+            limit=limit,
+            min_similarity=min_similarity,
+        )
+
+        return CandidateListResponse(
+            target_fact_id=fact_id,
+            total_candidates=len(candidates),
+            candidates=candidates,
+        )
+
+    except CandidateMatcherError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Candidate matching failed: {str(e)}"
+        )

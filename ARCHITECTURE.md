@@ -193,4 +193,22 @@ FactLens pairs candidate facts across distinct documents and classifies each rel
    - Evidence confidence is below threshold, text is ambiguous, or verbatim quotes cannot be verified against source text. Preserves audit transparency rather than asserting false links.
 
 
+## 10. Candidate Retrieval vs. Relationship Reasoning Rationale
+
+FactLens decouples candidate retrieval (Phase 5) from relationship reasoning (Phase 6) into distinct architectural stages.
+
+### Why Candidate Retrieval is Separated from Relationship Reasoning
+1. **Computational Efficiency ($O(N)$ vs $O(N^2)$ LLM Invocations)**:
+   - If every extracted fact were evaluated against every other fact using an LLM or complex reasoning engine, computational cost and latency would scale quadratically at $O(N^2)$.
+   - Separating candidate retrieval introduces a **staged retrieval pipeline**:
+     - **Stage 1 (Deterministic Property Filtering)**: Eliminates 95%+ of irrelevant fact pairs instantly using subject/predicate index matching.
+     - **Stage 2 (Cosine Vector Similarity)**: Ranks candidate pairs using dense vector embeddings in sub-millisecond vectorized math.
+     - **Stage 3 (Targeted Relationship Classification)**: Only top-K candidate pairs are passed to the 4-case classifier engine.
+2. **Modular Provider Replaceability**:
+   - Vector embedding providers (`EmbeddingProvider`) can be updated, re-indexed, or tuned independently from LLM decision models (`LLMProvider`).
+3. **Auditability & Explainability**:
+   - Dissecting retrieval from reasoning allows inspecting candidate search results (`GET /api/facts/{fact_id}/candidates`) with explicit similarity scores and matching criteria prior to performing non-reversible state updates or final 4-case classification.
+
+
+
 

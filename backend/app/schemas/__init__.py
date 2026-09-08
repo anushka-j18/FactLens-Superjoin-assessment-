@@ -16,6 +16,10 @@ from app.schemas.relationships import (
     RelationshipAnalysisRequest,
     RelationshipAnalysisResponse,
 )
+from app.schemas.candidates import (
+    CandidateMatchResponse,
+    CandidateListResponse,
+)
 
 __all__ = [
     "DocumentResponse",
@@ -29,4 +33,6 @@ __all__ = [
     "RelationshipListResponse",
     "RelationshipAnalysisRequest",
     "RelationshipAnalysisResponse",
+    "CandidateMatchResponse",
+    "CandidateListResponse",
 ]

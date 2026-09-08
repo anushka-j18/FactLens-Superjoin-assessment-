@@ -151,6 +151,18 @@ FactLens pairs candidate facts across distinct documents and classifies each rel
 
 ---
 
+## Semantic Candidate Fact Matching & Retrieval
+
+FactLens uses a 2-stage retrieval strategy to efficiently match candidate facts across documents without quadratic $O(N^2)$ LLM pairwise explosion:
+
+1. **Stage 1 (Deterministic Property Filtering)**: Pre-filters candidate facts sharing compatible normalized subjects, predicates, value types, and units.
+2. **Stage 2 (Cosine Vector Similarity)**: Ranks candidates using dense vector embeddings generated via `EmbeddingProvider` (`MockEmbeddingProvider` or `OpenAIEmbeddingProvider`).
+
+### Candidate Retrieval Endpoint
+- `GET /api/facts/{fact_id}/candidates`: Retrieve ranked candidate matching facts for a given fact with similarity scores and matching criteria metadata.
+
+---
+
 ## Starter Datasets
 
 The repository includes two curated starter datasets under `data/starter-datasets/`:

@@ -1,4 +1,4 @@
 """SQLAlchemy models package."""
-from app.models.entities import Document, EvidenceUnit, Fact, FactRelationship
+from app.models.entities import Document, EvidenceUnit, Fact, FactEmbedding, FactRelationship
 
-__all__ = ["Document", "EvidenceUnit", "Fact", "FactRelationship"]
+__all__ = ["Document", "EvidenceUnit", "Fact", "FactEmbedding", "FactRelationship"]
