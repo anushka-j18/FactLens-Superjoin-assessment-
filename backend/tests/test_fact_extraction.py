@@ -47,7 +47,7 @@ def test_grounded_fact_extraction(client):
     assert rev_fact["normalized_value"] == 46000000000.0  # 4,600 Cr -> 46,000,000,000.0
     assert rev_fact["value_type"] == "currency"
     assert rev_fact["unit"] == "INR"
-    assert rev_fact["temporal_context"] == "FY24"
+    assert rev_fact["temporal_context"] == "FY2024"
     assert rev_fact["extraction_status"] == "grounded"
     assert "revenue was" in rev_fact["verbatim_quote"]
 
@@ -133,12 +133,12 @@ def test_hallucinated_quote_rejection(client, db_session):
 
 def test_get_facts_and_filtering(client):
     """Test GET /api/facts and GET /api/documents/{document_id}/facts endpoints."""
-    text = "Delhivery revenue was INR 4,600 Cr in FY24."
+    text = "Delhivery revenue filter test was INR 4,600 Cr in FY24."
     pdf_bytes = create_sample_pdf(text)
     
     up_res = client.post(
         "/api/documents",
-        files={"file": ("delhivery_filter.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+        files={"file": ("delhivery_filter_unique.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
     )
     doc_id = up_res.json()["id"]
 

@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.entities import Document, EvidenceUnit, Fact
+from app.services.normalizer import FactNormalizer
 from app.services.llm import get_llm_provider, LLMProvider
 
 
@@ -82,8 +83,10 @@ class FactExtractorService:
                             "value": {"type": "string"},
                             "value_type": {"type": "string"},
                             "unit": {"type": "string"},
+                            "currency": {"type": "string"},
                             "temporal_context": {"type": "string"},
                             "geographic_scope": {"type": "string"},
+                            "operating_scope": {"type": "string"},
                             "qualifiers": {"type": "object"},
                             "verbatim_quote": {"type": "string"},
                             "is_inferred": {"type": "boolean"},
@@ -123,9 +126,14 @@ class FactExtractorService:
                     rejected_count += 1
                     continue
 
-                # Rule 3: Deterministic value normalization
+                # Rule 3: Deterministic value & context normalization
                 raw_val = str(cf.get("value", "")).strip()
-                norm_val = cls.normalize_numeric_value(raw_val)
+                norm_num, scale_unit = FactNormalizer.normalize_number(raw_val)
+                currency = cf.get("currency") or FactNormalizer.normalize_currency(raw_val)
+                unit = FactNormalizer.normalize_unit(cf.get("unit"), cf.get("predicate", ""))
+                
+                temp_dict = FactNormalizer.normalize_temporal_context(cf.get("temporal_context"))
+                canonical_temp = temp_dict["canonical"] or cf.get("temporal_context")
 
                 fact_obj = Fact(
                     document_id=document_id,
@@ -134,11 +142,13 @@ class FactExtractorService:
                     subject=str(cf.get("subject", "General")).strip(),
                     predicate=str(cf.get("predicate", "fact")).strip(),
                     value=raw_val,
-                    normalized_value=norm_val,
+                    normalized_value=norm_num,
                     value_type=str(cf.get("value_type", "text")).strip(),
-                    unit=cf.get("unit"),
-                    temporal_context=cf.get("temporal_context"),
+                    unit=unit,
+                    currency=currency,
+                    temporal_context=canonical_temp,
                     geographic_scope=cf.get("geographic_scope"),
+                    operating_scope=cf.get("operating_scope"),
                     qualifiers=cf.get("qualifiers", {}),
                     verbatim_quote=verbatim_quote,
                     is_inferred=bool(cf.get("is_inferred", False)),

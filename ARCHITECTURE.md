@@ -146,3 +146,30 @@ LLMs are prone to hallucinations, including inventing non-existent evidence IDs,
 2. **Verbatim Quote Verification**: The backend deterministically matches `verbatim_quote` strings against `clean_text` and `raw_text` of the source page. If the LLM invents or heavily paraphrases a quote, the fact is rejected.
 3. **Deterministic Value Normalization**: Raw numeric strings (e.g. `₹4,600 Cr`, `$12.4 million`, `14%`) are normalized into standard float values (e.g. `46000000000.0`, `12400000.0`, `0.14`) deterministically by backend code rather than relying on LLM arithmetic.
 
+
+## 8. Fact Normalization & Context Preservation Strategy
+
+FactLens implements a zero-LLM deterministic normalization layer (`FactNormalizer`) designed to make semantically equivalent facts comparable while guaranteeing that contextual dimensions (temporal scope, geographic scope, operating scope, currency) are preserved.
+
+### Core Principles
+1. **Deterministic Scale Parsing**:
+   - Indian scales: `Cr` / `Crore` ($\times 10^7$), `Lakh` / `Lac` ($\times 10^5$).
+   - Western scales: `K` / `Thousand` ($\times 10^3$), `M` / `Million` ($\times 10^6$), `B` / `Billion` ($\times 10^9$), `T` / `Trillion` ($\times 10^{12}$).
+   - Percentages: `14%` / `14 percent` $\rightarrow `0.14`.
+2. **Currency Standardization**:
+   - `$` / `USD` / `US$` $\rightarrow$ `USD`.
+   - `₹` / `INR` / `Rs` $\rightarrow$ `INR`.
+   - `€` / `EUR` $\rightarrow$ `EUR`.
+   - `£` / `GBP` $\rightarrow$ `GBP`.
+3. **Temporal Period Normalization**:
+   - `FY24`, `FY 2024`, `2023-24` $\rightarrow$ Canonical `FY2024`.
+   - `Q1 FY24`, `Q1 2024` $\rightarrow$ Canonical `Q1 FY2024`.
+   - `2024` $\rightarrow$ Canonical `CY2024`.
+4. **Context Preservation & Non-Collapsing Guarantee**:
+   - Facts reporting the same numerical value in different timeframes (e.g. `$10M in FY2024` vs `$10M in Q1 2024`) remain **distinct facts**.
+   - Facts reporting the same numerical value in different geographic scopes (e.g. `$10M in North America` vs `$10M globally`) remain **distinct facts**.
+5. **Comparability Engine (`are_facts_comparable`)**:
+   - Evaluates subject & predicate alias resolution.
+   - Evaluates whether temporal/geographic contexts match (`True`), differ (`False`), or are unknown (`None`).
+
+

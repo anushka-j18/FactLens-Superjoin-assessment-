@@ -14,8 +14,10 @@ class FactResponse(BaseModel):
     normalized_value: Optional[float] = None
     value_type: str
     unit: Optional[str] = None
+    currency: Optional[str] = None
     temporal_context: Optional[str] = None
     geographic_scope: Optional[str] = None
+    operating_scope: Optional[str] = None
     qualifiers: Dict[str, Any] = Field(default_factory=dict)
     verbatim_quote: str
     is_inferred: bool

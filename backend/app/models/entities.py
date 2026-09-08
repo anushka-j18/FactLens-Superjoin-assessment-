@@ -57,10 +57,12 @@ class Fact(Base):
     normalized_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     value_type: Mapped[str] = mapped_column(String(64), nullable=False, default="text")
     unit: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    currency: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     
     # Context & Provenance
     temporal_context: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     geographic_scope: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    operating_scope: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     qualifiers: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     verbatim_quote: Mapped[str] = mapped_column(Text, nullable=False)
     

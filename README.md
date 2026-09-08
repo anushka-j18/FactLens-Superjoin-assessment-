@@ -124,6 +124,17 @@ FactLens converts unstructured evidence units into structured numerical and sema
 
 ---
 
+## Fact Normalization & Context Preservation
+
+FactLens normalizes equivalent representations without losing context:
+- **Scales**: `$10M`, `$10 million`, `USD 10,000,000` $\rightarrow$ `10000000.0 USD`.
+- **Units**: `1,200 employees`, `workforce of 1.2K` $\rightarrow$ `1200.0 employees`.
+- **Currencies**: `$`, `USD`, `₹`, `INR`, `€`, `EUR`, `£`, `GBP`.
+- **Periods**: `FY24`, `FY 2024`, `2023-24` $\rightarrow$ `FY2024`; `Q1 FY24` $\rightarrow$ `Q1 FY2024`.
+- **Context Preservation**: Facts with matching values in different periods (e.g. `$10M in FY2024` vs `$10M in Q1 2024`) or regions (e.g. `$10M in North America` vs `$10M globally`) remain **distinct facts** with explicit context metadata.
+
+---
+
 ## Starter Datasets
 
 The repository includes two curated starter datasets under `data/starter-datasets/`:
