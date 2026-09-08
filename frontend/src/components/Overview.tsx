@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, CheckSquare, GitCompare, AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
+import { FileText, CheckSquare, GitCompare, AlertTriangle, ArrowRight, RefreshCw, Upload, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { DocumentItem, FactItem, FactRelationship, EvaluationMetrics } from '../services/api';
 
 interface OverviewProps {
@@ -11,6 +11,7 @@ interface OverviewProps {
   onSelectDocument: (docId: string) => void;
   onSelectFact: (factId: string) => void;
   onRefresh: () => void;
+  onUploadClick: () => void;
 }
 
 export const Overview: React.FC<OverviewProps> = ({
@@ -20,26 +21,49 @@ export const Overview: React.FC<OverviewProps> = ({
   metrics,
   onNavigateTab,
   onRefresh,
+  onUploadClick,
 }) => {
   const needsReviewRelationships = relationships.filter((r) => r.needs_review || r.relationship_type === 'REASONING_FAILURE');
   const needsReviewFacts = facts.filter((f) => f.needs_review || f.extraction_status !== 'grounded');
 
   return (
     <div>
-      {/* Header bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      {/* 10-Second Product Explanation Hero Banner */}
+      <div
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          padding: '20px 24px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '24px',
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-            System Dashboard
-          </h1>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Evidence-first document intelligence overview & recent audit findings.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+              FactLens — Evidence-First Intelligence
+            </h1>
+            <span className="badge badge-neutral" style={{ fontFamily: 'var(--font-mono)' }}>Production v0.1</span>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '820px', lineHeight: '1.5' }}>
+            Reads multiple PDF filings, extracts grounded numerical and semantic claims bound to exact verbatim quotes, and evaluates cross-document relationships across 4 mandatory outcome categories.
           </p>
         </div>
-        <button className="btn-secondary" onClick={onRefresh}>
-          <RefreshCw size={13} />
-          <span>Refresh</span>
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="btn-secondary" onClick={onRefresh} style={{ padding: '8px 12px' }}>
+            <RefreshCw size={13} />
+            <span>Refresh</span>
+          </button>
+          <button className="btn-primary" onClick={onUploadClick} style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}>
+            <Upload size={14} />
+            <span>Upload PDF Document</span>
+          </button>
+        </div>
       </div>
 
       {/* Metrics Row */}
@@ -59,7 +83,7 @@ export const Overview: React.FC<OverviewProps> = ({
             <CheckSquare size={14} style={{ color: 'var(--status-green)' }} />
           </div>
           <div className="metric-value">{metrics?.grounded_facts ?? facts.length}</div>
-          <div className="metric-subtitle">Verified against verbatim text</div>
+          <div className="metric-subtitle">Verbatim quote verified in text</div>
         </div>
 
         <div className="metric-card" style={{ cursor: 'pointer' }} onClick={() => onNavigateTab('relationships')}>
@@ -68,18 +92,93 @@ export const Overview: React.FC<OverviewProps> = ({
             <GitCompare size={14} style={{ color: 'var(--status-blue)' }} />
           </div>
           <div className="metric-value">{metrics?.relationships_classified ?? relationships.length}</div>
-          <div className="metric-subtitle">Across distinct PDF documents</div>
+          <div className="metric-subtitle">Across distinct PDF files</div>
         </div>
 
         <div className="metric-card" style={{ cursor: 'pointer' }} onClick={() => onNavigateTab('relationships')}>
           <div className="metric-header">
-            <span>Needs Review</span>
+            <span>Needs Review / Ambiguous</span>
             <AlertTriangle size={14} style={{ color: 'var(--status-amber)' }} />
           </div>
-          <div className="metric-value" style={{ color: needsReviewRelationships.length > 0 ? 'var(--status-amber)' : 'inherit' }}>
+          <div className="metric-value" style={{ color: (needsReviewRelationships.length + needsReviewFacts.length) > 0 ? 'var(--status-amber)' : 'inherit' }}>
             {needsReviewRelationships.length + needsReviewFacts.length}
           </div>
-          <div className="metric-subtitle">Ambiguous claims or low confidence</div>
+          <div className="metric-subtitle">Low confidence or reasoning failure</div>
+        </div>
+      </div>
+
+      {/* 4 Outcome Case Demonstration Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderLeft: '3px solid var(--status-green)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+          }}
+          onClick={() => onNavigateTab('relationships')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <CheckCircle2 size={14} style={{ color: 'var(--status-green)' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--status-green)' }}>CORROBORATED</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Matching claims & values across independent source filings.</div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderLeft: '3px solid var(--status-red)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+          }}
+          onClick={() => onNavigateTab('relationships')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <XCircle size={14} style={{ color: 'var(--status-red)' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--status-red)' }}>CONTRADICTED</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Direct numerical or semantic conflicts for the exact same period/scope.</div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderLeft: '3px solid var(--status-blue)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+          }}
+          onClick={() => onNavigateTab('relationships')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <Info size={14} style={{ color: 'var(--status-blue)' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--status-blue)' }}>CONTEXTUALLY RECONCILED</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Surface differences explained by timeframe, scope, or accounting standards.</div>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderLeft: '3px solid var(--status-amber)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 14px',
+            cursor: 'pointer',
+          }}
+          onClick={() => onNavigateTab('relationships')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <AlertTriangle size={14} style={{ color: 'var(--status-amber)' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--status-amber)' }}>NEEDS REVIEW / FAILURE</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Ambiguous text or ungrounded evidence preserving audit honesty.</div>
         </div>
       </div>
 
@@ -148,7 +247,10 @@ export const Overview: React.FC<OverviewProps> = ({
           {relationships.length === 0 ? (
             <div className="empty-state">
               <div className="empty-title">No Relationships Analyzed</div>
-              <div className="empty-desc">Upload documents and extract facts to view cross-document findings.</div>
+              <div className="empty-desc">Upload PDF documents to automatically discover cross-document findings.</div>
+              <button className="btn-primary" onClick={onUploadClick} style={{ marginTop: '8px' }}>
+                Upload PDF
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>

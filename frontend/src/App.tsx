@@ -114,6 +114,7 @@ export default function App() {
             onSelectDocument={(id) => setSelectedDocumentId(id)}
             onSelectFact={() => setActiveTab('facts')}
             onRefresh={loadAllData}
+            onUploadClick={() => setIsUploaderOpen(true)}
           />
         ) : activeTab === 'documents' ? (
           <DocumentList
