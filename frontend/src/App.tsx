@@ -1,101 +1,148 @@
-import { useEffect, useState } from 'react';
-import { FileText, CheckCircle2, XCircle, AlertCircle, HelpCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Header } from './components/Header';
+import { Overview } from './components/Overview';
+import { DocumentList } from './components/DocumentList';
+import { DocumentDetail } from './components/DocumentDetail';
+import { FactList } from './components/FactList';
+import { RelationshipMatrix } from './components/RelationshipMatrix';
+import { EvaluationView } from './components/EvaluationView';
+import { DocumentUploaderModal } from './components/DocumentUploaderModal';
 
-interface HealthState {
-  status: string;
-  app: string;
-  environment: string;
-  llm_provider: string;
-  embedding_provider: string;
-}
+import {
+  fetchHealth,
+  fetchDocuments,
+  fetchFacts,
+  fetchRelationships,
+  fetchEvaluationMetrics,
+  extractDocumentFacts,
+  analyzeRelationships,
+  DocumentItem,
+  FactItem,
+  FactRelationship,
+  EvaluationMetrics,
+} from './services/api';
 
 export default function App() {
-  const [health, setHealth] = useState<HealthState | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'facts' | 'relationships' | 'evaluation'>('overview');
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [isUploaderOpen, setIsUploaderOpen] = useState<boolean>(false);
+
+  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'loading'>('loading');
+  const [providerName, setProviderName] = useState<string>('Mock');
+
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [facts, setFacts] = useState<FactItem[]>([]);
+  const [relationships, setRelationships] = useState<FactRelationship[]>([]);
+  const [metrics, setMetrics] = useState<EvaluationMetrics | null>(null);
+
+  const loadAllData = async () => {
+    try {
+      const [docsData, factsData, relsData, metricsData] = await Promise.all([
+        fetchDocuments().catch(() => []),
+        fetchFacts().catch(() => []),
+        fetchRelationships().catch(() => []),
+        fetchEvaluationMetrics().catch(() => null),
+      ]);
+
+      setDocuments(docsData);
+      setFacts(factsData);
+      setRelationships(relsData);
+      setMetrics(metricsData);
+    } catch (err) {
+      console.error('Error loading application data:', err);
+    }
+  };
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-        return res.json();
-      })
+    // Check health
+    fetchHealth()
       .then((data) => {
-        setHealth(data);
-        setLoading(false);
+        setApiStatus('online');
+        setProviderName(data.llm_provider || 'Mock');
       })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+      .catch(() => setApiStatus('offline'));
+
+    loadAllData();
   }, []);
 
+  const handleExtractFacts = async (docId: string) => {
+    try {
+      await extractDocumentFacts(docId);
+      await loadAllData();
+    } catch (err: any) {
+      alert(`Extraction failed: ${err.message}`);
+    }
+  };
+
+  const handleReanalyzeRelationships = async () => {
+    try {
+      await analyzeRelationships();
+      await loadAllData();
+    } catch (err: any) {
+      alert(`Re-analysis failed: ${err.message}`);
+    }
+  };
+
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <div className="brand">
-          <FileText size={20} color="#38bdf8" />
-          <span className="brand-title">FactLens</span>
-          <span className="brand-tag">v0.1.0</span>
-        </div>
-        <div className="status-badge">
-          <div className={`status-dot ${error ? 'offline' : ''}`}></div>
-          <span>
-            {loading
-              ? 'Checking API...'
-              : error
-              ? 'API Offline'
-              : `API Online (${health?.llm_provider} LLM)`}
-          </span>
-        </div>
-      </header>
+    <div className="app-layout">
+      {/* Top Navbar */}
+      <Header
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setSelectedDocumentId(null);
+        }}
+        onUploadClick={() => setIsUploaderOpen(true)}
+        apiStatus={apiStatus}
+        providerName={providerName}
+      />
 
-      <main className="app-body">
-        <div className="foundation-card">
-          <h2>FactLens — Evidence-First Document Intelligence</h2>
-          <p>
-            Architecture foundation initialized. FactLens extracts semantic and numerical facts
-            from PDF filings, binds every fact to verbatim source evidence, and evaluates cross-document relationships.
-          </p>
-        </div>
-
-        <div className="foundation-card">
-          <h2>Mandatory Relationship Reasoning Cases</h2>
-          <div className="cases-grid">
-            <div className="case-badge corroborated">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <CheckCircle2 size={16} color="#34d399" />
-                <span className="case-title" style={{ color: '#34d399' }}>Corroborated</span>
-              </div>
-              <p className="case-desc">Claims match consistently across independent source documents.</p>
-            </div>
-
-            <div className="case-badge contradicted">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <XCircle size={16} color="#f87171" />
-                <span className="case-title" style={{ color: '#f87171' }}>Contradicted</span>
-              </div>
-              <p className="case-desc">Direct numerical or semantic conflict for the same period/scope.</p>
-            </div>
-
-            <div className="case-badge reconciled">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <AlertCircle size={16} color="#38bdf8" />
-                <span className="case-title" style={{ color: '#38bdf8' }}>Contextually Reconciled</span>
-              </div>
-              <p className="case-desc">Surface discrepancy resolved by timeframe, scope, or accounting differences.</p>
-            </div>
-
-            <div className="case-badge failure">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <HelpCircle size={16} color="#fbbf24" />
-                <span className="case-title" style={{ color: '#fbbf24' }}>Extraction / Reasoning Failure</span>
-              </div>
-              <p className="case-desc">Ambiguous text or unverified evidence preventing explicit linking.</p>
-            </div>
-          </div>
-        </div>
+      {/* Main Viewport Content */}
+      <main className="main-viewport">
+        {selectedDocumentId ? (
+          <DocumentDetail
+            documentId={selectedDocumentId}
+            onBack={() => setSelectedDocumentId(null)}
+          />
+        ) : activeTab === 'overview' ? (
+          <Overview
+            documents={documents}
+            facts={facts}
+            relationships={relationships}
+            metrics={metrics}
+            onNavigateTab={setActiveTab}
+            onSelectDocument={(id) => setSelectedDocumentId(id)}
+            onSelectFact={() => setActiveTab('facts')}
+            onRefresh={loadAllData}
+          />
+        ) : activeTab === 'documents' ? (
+          <DocumentList
+            documents={documents}
+            onSelectDocument={(id) => setSelectedDocumentId(id)}
+            onExtractFacts={handleExtractFacts}
+            onUploadClick={() => setIsUploaderOpen(true)}
+          />
+        ) : activeTab === 'facts' ? (
+          <FactList facts={facts} />
+        ) : activeTab === 'relationships' ? (
+          <RelationshipMatrix
+            relationships={relationships}
+            onReanalyze={handleReanalyzeRelationships}
+          />
+        ) : activeTab === 'evaluation' ? (
+          <EvaluationView metrics={metrics} onRefresh={loadAllData} />
+        ) : null}
       </main>
+
+      {/* Upload Modal */}
+      <DocumentUploaderModal
+        isOpen={isUploaderOpen}
+        onClose={() => setIsUploaderOpen(false)}
+        onUploadSuccess={() => {
+          loadAllData();
+          setActiveTab('documents');
+        }}
+      />
     </div>
   );
 }
