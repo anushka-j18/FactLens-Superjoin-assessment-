@@ -1,0 +1,136 @@
+# FactLens Architecture & System Design
+
+FactLens is an evidence-first document intelligence platform that ingests multiple PDF documents, extracts structured numerical and semantic facts with verbatim provenance, and analyzes relationships between facts across documents.
+
+---
+
+## 1. System Architecture & Boundaries
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                          FactLens Frontend                             │
+│       React 18 + TypeScript + Vite + Developer-Focused CSS           │
+│  - Split-view document viewer with evidence bounding box highlights   │
+│  - Interactive relationship matrices & audit trails                    │
+│  - Dynamic PDF upload & ingestion triggers                            │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP / REST API
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                           FastAPI Backend                              │
+│ ┌──────────────────────┐ ┌────────────────────┐ ┌────────────────────┐ │
+│ │  Ingestion Service   │ │ Extraction Service │ │ Reasoning Engine   │ │
+│ │  (PyMuPDF Parser)    │ │  (LLM + Verbatim)  │ │(4-Case Classifier) │ │
+│ └──────────┬───────────┘ └─────────┬──────────┘ └─────────┬──────────┘ │
+└────────────┼───────────────────────┼──────────────────────┼────────────┘
+             │                       │                      │
+┌────────────▼───────────────────────▼──────────────────────▼────────────┐
+│                             Storage Layer                              │
+│  SQLite (SQLAlchemy ORM)  •  Vector Embeddings  •  Raw PDF Storage     │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Boundaries:
+1. **Frontend**: Pure client-side UI for uploading PDFs, inspecting extracted facts, viewing verbatim evidence side-by-side with original PDF pages, and reviewing relationship audit trails.
+2. **Backend REST API**: FastAPI server exposing endpoints for document upload, processing status, fact retrieval, candidate matching, and relationship reasoning.
+3. **Ingestion Layer**: PyMuPDF-based parser responsible solely for converting PDF documents into structured pages, text blocks, and line bounding box coordinates.
+4. **Extraction Layer**: Combines LLM structured generation with deterministic quote-matching to output structured facts containing exact page character offsets and bounding boxes.
+5. **Reasoning Layer**: Candidate pairing engine (via semantic embeddings) + LLM-based 4-case classifier (Corroborated, Contradicted, Contextually Reconciled, Reasoning Failure).
+6. **Storage Layer**: SQLite via SQLAlchemy storing document metadata, raw pages, extracted facts, candidate pairs, and relationship decisions.
+
+---
+
+## 2. End-to-End Data Flow
+
+```
+1. PDF Upload ────► 2. Ingestion ────► 3. Fact Extraction ────► 4. Candidate Matching
+   (Save file &       (PyMuPDF extract   (LLM JSON Schema +       (Embedding cosine
+    calc SHA-256)      pages & boxes)     Verbatim validation)     similarity threshold)
+                                                                            │
+                                                                            ▼
+6. UI Rendering ◄──── 5. Relationship Reasoning ◄───────────────────────────┘
+   (Evidence viewer &    (Classify: Corroborated / Contradicted /
+    reasoning trail)      Reconciled / Extraction Failure)
+```
+
+---
+
+## 3. Database Schema & Proposed Entities
+
+```
++------------------+       +-------------------+       +--------------------+
+|    Document      |       |   DocumentPage    |       |        Fact        |
++------------------+       +-------------------+       +--------------------+
+| id (UUID/PK)     |<───┐  | id (PK)           |  ┌───>| id (UUID/PK)       |
+| filename         |    └──| document_id (FK)  |  │    | document_id (FK)   |
+| hash (SHA-256)   |       | page_number       |  │    | page_number        |
+| page_count       |       | text_content      |──┼───>| fact_type          |
+| status           |       | bbox_data (JSON)  |  │    | metric_name        |
+| created_at       |       +-------------------+  │    | raw_value          |
++------------------+                              │    | normalized_value   |
+                                                  │    | unit               |
+                                                  │    | verbatim_quote     |
+                                                  │    | bbox (JSON)        |
+                                                  │    +---------┬----------+
+                                                                 │
+                                                                 ▼
+                                                       +--------------------+
+                                                       |  FactRelationship  |
+                                                       +--------------------+
+                                                       | id (UUID/PK)       |
+                                                       | source_fact_id(FK) |
+                                                       | target_fact_id(FK) |
+                                                       | relationship_type  |
+                                                       | confidence_score   |
+                                                       | reasoning_summary  |
+                                                       | reconciliation_ctx |
+                                                       +--------------------+
+```
+
+### Detailed Entity Specs:
+- **`Document`**: Tracks uploaded files, SHA-256 hashes to prevent duplicate ingestion, processing status, and page counts.
+- **`DocumentPage`**: Stores plain text extracted per page alongside line-level bounding box maps for instant evidence lookup.
+- **`Fact`**: Captures extracted claims (numerical or semantic), standard metric names, raw values, normalized numeric values, units, exact verbatim quote strings, and JSON bounding boxes.
+- **`FactEmbedding`**: Stores dense vector representations of fact statements for semantic candidate matching across documents.
+- **`FactRelationship`**: Stores directed or undirected pairwise evaluations between facts across documents, categorized into one of four mandatory outcomes.
+
+---
+
+## 4. AI vs. Deterministic Responsibilities
+
+| Subsystem | Deterministic Responsibilities | AI / LLM Responsibilities |
+| :--- | :--- | :--- |
+| **Ingestion** | PyMuPDF page parsing, layout line/block extraction, SHA-256 hashing. | None. |
+| **Fact Extraction** | Verbatim quote validation, character index matching, numeric standardizing ($1,200 \rightarrow 1200000000$). | Unstructured text understanding, identifying entity/attribute pairs, extracting candidate facts. |
+| **Candidate Matching** | Entity-attribute matching rules, vector similarity index calculations. | Dense semantic embedding generation. |
+| **Relationship Reasoning** | Pre-filtering non-overlapping metrics, exact numeric match/mismatch checks. | Deep context comparison, evaluating timeframe differences (FY22 vs FY24), scope differences (standalone vs consolidated), classifying relationship into 4 required outcomes. |
+
+---
+
+## 5. Relationship Reasoning Strategy (4 Mandatory Cases)
+
+FactLens evaluates pairs of candidate facts across documents and classifies them into exactly one of four core categories:
+
+1. **`CORROBORATED`**:
+   - Both facts reference the same underlying metric/entity/timeframe and report consistent values or assertions.
+   - *Example*: Document A and Document B both state Delhivery FY24 Revenue was ₹4,600 Cr.
+
+2. **`CONTRADICTED / LIKELY CONTRADICTION`**:
+   - Both facts reference the exact same entity, metric, and timeframe, but report mutually exclusive numbers or conflicting assertions.
+   - *Example*: Document A states FY24 Net Profit was ₹100 Cr while Document B states Net Profit was ₹150 Cr for the same period and reporting entity.
+
+3. **`CONTEXTUALLY RECONCILED`**:
+   - The numbers or statements appear different on the surface, but are resolved by contextual factors such as different reporting timeframes (FY22 vs FY24), scope (Standalone vs Consolidated), accounting standards (IndAS vs IFRS), or currency units.
+   - *Example*: Document A lists 2022 Revenue while Document B lists 2024 Revenue; both are true in their respective contextual scopes.
+
+4. **`EXTRACTION / REASONING FAILURE`**:
+   - The facts cannot be conclusively linked because evidence is incomplete, verbatim quotes cannot be verified against source text, or LLM output is ambiguous.
+   - Preserves audit transparency rather than making false assertions.
+
+---
+
+## 6. Provider Abstractions & Extensibility
+
+- **LLM Abstraction**: `LLMProvider` interface defining standard async `complete()` and `structured_predict()` methods. Allows seamless switching between OpenAI, Anthropic, Gemini, or local models via `.env` configuration.
+- **Embedding Abstraction**: `EmbeddingProvider` interface defining `embed_text()` and `embed_batch()`. Supports OpenAI embeddings, HuggingFace sentence-transformers, or custom vector providers.
+- **Dynamic Schema**: Facts store arbitrary tag pairs and metadata JSON fields to allow extraction of domain-agnostic fact types without schema migrations.
+- **Incremental Processing**: Adding a new PDF ingests only the new document, extracts its facts, generates embeddings for the new facts, and compares them against existing stored facts in the database without re-processing older documents.
