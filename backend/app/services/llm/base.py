@@ -10,12 +10,12 @@ class LLMProvider(ABC):
     """
     
     @abstractmethod
-    async def generate_completion(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def generate_completion(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Generate a raw text completion."""
         pass
         
     @abstractmethod
-    async def generate_structured(
+    def generate_structured(
         self, 
         prompt: str, 
         schema: Dict[str, Any], 

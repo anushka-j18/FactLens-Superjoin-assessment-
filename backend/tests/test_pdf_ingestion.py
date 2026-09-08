@@ -2,43 +2,6 @@ import io
 import os
 import pymupdf as fitz
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.main import app
-from app.db.session import Base, get_db
-
-from sqlalchemy.pool import StaticPool
-
-# Setup in-memory SQLite database for testing with StaticPool
-TEST_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def setup_database():
-    """Create fresh database tables before each test."""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
 
 
 def create_sample_pdf(num_pages: int = 1, text_content: str = "FactLens evidence test page.") -> bytes:
@@ -52,7 +15,7 @@ def create_sample_pdf(num_pages: int = 1, text_content: str = "FactLens evidence
     return pdf_bytes
 
 
-def test_valid_pdf_upload():
+def test_valid_pdf_upload(client):
     """Test uploading a valid single-page PDF document."""
     pdf_bytes = create_sample_pdf(num_pages=1, text_content="Single page evidence quote.")
     response = client.post(
@@ -67,7 +30,7 @@ def test_valid_pdf_upload():
     assert "file_hash" in data
 
 
-def test_multi_page_pdf_ingestion():
+def test_multi_page_pdf_ingestion(client):
     """Test multi-page PDF ingestion, page numbering (1-indexed), and evidence persistence."""
     pdf_bytes = create_sample_pdf(num_pages=3, text_content="Multi page test data.")
     response = client.post(
@@ -95,7 +58,7 @@ def test_multi_page_pdf_ingestion():
         assert "blocks" in evidence["location_metadata"]
 
 
-def test_empty_and_corrupt_pdf_rejection():
+def test_empty_and_corrupt_pdf_rejection(client):
     """Test rejection of 0-byte files, non-PDF headers, and corrupt files."""
     # 0-byte file
     res_empty = client.post(
@@ -113,7 +76,7 @@ def test_empty_and_corrupt_pdf_rejection():
     assert "not a valid PDF" in res_text.json()["detail"]
 
 
-def test_invalid_file_extension():
+def test_invalid_file_extension(client):
     """Test rejection of files without .pdf extension."""
     response = client.post(
         "/api/documents",
@@ -123,9 +86,9 @@ def test_invalid_file_extension():
     assert "Only PDF files" in response.json()["detail"]
 
 
-def test_duplicate_document_rejection():
+def test_duplicate_document_rejection(client):
     """Test duplicate document detection using SHA-256 file hash."""
-    pdf_bytes = create_sample_pdf(num_pages=1, text_content="Duplicate test content.")
+    pdf_bytes = create_sample_pdf(num_pages=1, text_content="Duplicate test content unique text.")
     
     # First upload -> Success
     res1 = client.post(
@@ -143,7 +106,7 @@ def test_duplicate_document_rejection():
     assert "Duplicate document" in res2.json()["detail"]["error"]
 
 
-def test_starter_dataset_pdf_ingestion():
+def test_starter_dataset_pdf_ingestion(client):
     """Test ingesting a real PDF from starter-datasets if present on disk."""
     sample_path = "data/starter-datasets/delhivery/03-delhivery-q4-fy24-earnings-presentation.pdf"
     if not os.path.exists(sample_path):

@@ -132,5 +132,17 @@ FactLens evaluates pairs of candidate facts across documents and classifies them
 
 - **LLM Abstraction**: `LLMProvider` interface defining standard async `complete()` and `structured_predict()` methods. Allows seamless switching between OpenAI, Anthropic, Gemini, or local models via `.env` configuration.
 - **Embedding Abstraction**: `EmbeddingProvider` interface defining `embed_text()` and `embed_batch()`. Supports OpenAI embeddings, HuggingFace sentence-transformers, or custom vector providers.
-- **Dynamic Schema**: Facts store arbitrary tag pairs and metadata JSON fields to allow extraction of domain-agnostic fact types without schema migrations.
-- **Incremental Processing**: Adding a new PDF ingests only the new document, extracts its facts, generates embeddings for the new facts, and compares them against existing stored facts in the database without re-processing older documents.
+## 7. LLM Rationale & Backend Provenance Validation
+
+### Why LLMs are Used for Fact Extraction
+Unstructured PDF documents (financial filings, annual reports, economic surveys) express facts in highly diverse syntactic structures, tables, footnotes, and narrative prose. LLMs provide:
+1. **Domain-Agnostic Understanding**: Ability to identify arbitrary entity-attribute-value triples without brittle hardcoded regex rules or fixed schemas.
+2. **Context & Metadata Extraction**: Disambiguating temporal scope (e.g., FY24, Q4 FY24) and qualifiers (accounting standards, reporting currency).
+3. **Structured Normalization**: Formatting extracted data into standardized JSON structures adhering to backend Pydantic schemas.
+
+### Why Provenance is Validated by Backend
+LLMs are prone to hallucinations, including inventing non-existent evidence IDs, page numbers, or paraphrasing quotes. FactLens enforces an **Evidence-First Architecture** where LLM outputs are treated as *untrusted candidates*:
+1. **Backend ID Whitelisting**: The backend injects real database `evidence_id`s into the LLM prompt. Upon receiving LLM candidate output, the backend verifies that `evidence_id` belongs to an existing `EvidenceUnit` of that document. Any hallucinated ID results in immediate rejection.
+2. **Verbatim Quote Verification**: The backend deterministically matches `verbatim_quote` strings against `clean_text` and `raw_text` of the source page. If the LLM invents or heavily paraphrases a quote, the fact is rejected.
+3. **Deterministic Value Normalization**: Raw numeric strings (e.g. `₹4,600 Cr`, `$12.4 million`, `14%`) are normalized into standard float values (e.g. `46000000000.0`, `12400000.0`, `0.14`) deterministically by backend code rather than relying on LLM arithmetic.
+

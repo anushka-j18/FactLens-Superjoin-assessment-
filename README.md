@@ -103,6 +103,27 @@ FactLens uses a deterministic parsing pipeline powered by PyMuPDF (`fitz`) to ex
 
 ---
 
+## Grounded Fact Extraction Pipeline
+
+FactLens converts unstructured evidence units into structured numerical and semantic facts while enforcing strict backend provenance verification.
+
+### Key Features
+1. **Dynamic Fact Schema**: Subject-predicate-value triple representation supporting arbitrary domain metrics (revenue, employees, CEO, headquarters, market share, inflation rates, etc.) without schema migrations.
+2. **LLM Provider Abstraction**: Provider interface (`LLMProvider`) supporting `MockLLMProvider` for offline testing without API keys, as well as production LLM providers.
+3. **Anti-Hallucination Guardrails**:
+   - Backend injects valid `evidence_id`s into prompt.
+   - Rejects candidate facts with invalid/hallucinated evidence IDs.
+   - Verifies `verbatim_quote` substrings against raw source text before saving.
+4. **Deterministic Value Normalization**: Standardizes Indian scales (`Cr`, `Lakh`), Western scales (`million`, `billion`), percentages, and currency units into floats (`normalized_value`).
+
+### Fact Extraction API Endpoints
+- `POST /api/documents/{document_id}/extract`: Trigger grounded fact extraction on a document.
+- `GET /api/facts`: List all extracted facts with optional filtering (`document_id`, `subject`, `predicate`).
+- `GET /api/facts/{fact_id}`: Retrieve details and verbatim source evidence for a specific fact.
+- `GET /api/documents/{document_id}/facts`: Retrieve all facts extracted from a specific document.
+
+---
+
 ## Starter Datasets
 
 The repository includes two curated starter datasets under `data/starter-datasets/`:

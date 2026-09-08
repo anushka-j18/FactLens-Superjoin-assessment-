@@ -9,6 +9,7 @@ app = FastAPI(
 )
 
 from app.api.documents import router as documents_router
+from app.api.facts import router as facts_router
 
 # Configure CORS
 app.add_middleware(
@@ -21,6 +22,7 @@ app.add_middleware(
 
 # Register API Routers
 app.include_router(documents_router)
+app.include_router(facts_router)
 
 
 @app.get("/health", tags=["Health"])
