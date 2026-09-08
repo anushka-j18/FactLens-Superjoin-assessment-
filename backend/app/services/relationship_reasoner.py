@@ -114,8 +114,13 @@ class RelationshipReasonerService:
                 target_fact_id=f2.id,
                 relationship_type="REASONING_FAILURE",
                 confidence_score=0.40,
-                reasoning_summary=f"Extraction / Reasoning Failure: Source or target evidence confidence is below verification threshold.",
-                reconciliation_context={"reason": "low_confidence_or_ungrounded"},
+                reasoning_summary=f"Extraction / Reasoning Failure [insufficient_context]: Source or target evidence confidence is below verification threshold.",
+                reconciliation_context={
+                    "reason": "insufficient_context",
+                    "failure_reason": "insufficient_context",
+                    "confidence_level": "LOW",
+                    "needs_review": True
+                },
             )
 
         # 1. CORROBORATED
@@ -132,6 +137,8 @@ class RelationshipReasonerService:
                     "matched_predicate": f1.predicate,
                     "matched_value": f1.value,
                     "temporal_context": f1.temporal_context,
+                    "confidence_level": "HIGH",
+                    "needs_review": False
                 },
             )
 
@@ -150,18 +157,26 @@ class RelationshipReasonerService:
                     "source_value": f1.value,
                     "target_value": f2.value,
                     "temporal_context": f1.temporal_context,
+                    "confidence_level": "HIGH",
+                    "needs_review": False
                 },
             )
 
         # 3. CONTEXTUALLY RECONCILED
         if (temp_match is False) or (geo_match is False) or (scope_match is False) or (f1.currency and f2.currency and f1.currency != f2.currency):
             reasons = []
+            failure_reason = None
             if temp_match is False:
                 reasons.append(f"timeframe difference ({f1.temporal_context} vs {f2.temporal_context})")
+                failure_reason = "conflicting_temporal_information"
             if geo_match is False:
                 reasons.append(f"geographic scope difference ({f1.geographic_scope} vs {f2.geographic_scope})")
+                if not failure_reason:
+                    failure_reason = "ambiguous_scope"
             if scope_match is False:
                 reasons.append(f"operating scope difference ({f1.operating_scope} vs {f2.operating_scope})")
+                if not failure_reason:
+                    failure_reason = "ambiguous_scope"
             if f1.currency and f2.currency and f1.currency != f2.currency:
                 reasons.append(f"currency difference ({f1.currency} vs {f2.currency})")
 
@@ -178,6 +193,8 @@ class RelationshipReasonerService:
                     "reconciliation_reasons": reasons,
                     "source_context": {"temporal": f1.temporal_context, "geo": f1.geographic_scope, "currency": f1.currency},
                     "target_context": {"temporal": f2.temporal_context, "geo": f2.geographic_scope, "currency": f2.currency},
+                    "confidence_level": "HIGH",
+                    "needs_review": False
                 },
             )
 
@@ -187,9 +204,14 @@ class RelationshipReasonerService:
             source_fact_id=f1.id,
             target_fact_id=f2.id,
             relationship_type="REASONING_FAILURE",
-            confidence_score=0.50,
-            reasoning_summary=f"Extraction / Reasoning Failure: Unable to conclusively reconcile values '{f1.value}' and '{f2.value}' due to ambiguous context.",
-            reconciliation_context={"reason": "ambiguous_context"},
+            confidence_score=0.45,
+            reasoning_summary=f"Extraction / Reasoning Failure [insufficient_context]: Unable to conclusively reconcile values '{f1.value}' and '{f2.value}' due to ambiguous context.",
+            reconciliation_context={
+                "reason": "ambiguous_context",
+                "failure_reason": "insufficient_context",
+                "confidence_level": "LOW",
+                "needs_review": True
+            },
         )
 
     @staticmethod

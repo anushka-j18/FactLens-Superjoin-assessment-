@@ -104,11 +104,24 @@ class FactExtractorService:
             db.commit()
 
             # Execute LLM structured extraction
-            raw_result = provider.generate_structured(prompt, schema)
+            try:
+                raw_result = provider.generate_structured(prompt, schema)
+            except Exception as llm_err:
+                doc.extraction_status = "failed"
+                doc.error_message = f"Extraction failure [malformed_llm_output]: {str(llm_err)}"
+                db.commit()
+                return "failed", [], 0
+
             candidate_facts = raw_result.get("facts", [])
+            if not candidate_facts:
+                doc.extraction_status = "no_facts_found"
+                doc.error_message = "Extraction status [no_meaningful_facts]: No structural facts were identified by LLM."
+                db.commit()
+                return "no_facts_found", [], 0
 
             valid_facts: List[Fact] = []
             rejected_count = 0
+            rejection_details = []
 
             for cf in candidate_facts:
                 ev_id = cf.get("evidence_id")
@@ -117,6 +130,7 @@ class FactExtractorService:
                 # Rule 1: Validate evidence_id existence in backend
                 if not ev_id or ev_id not in evidence_map:
                     rejected_count += 1
+                    rejection_details.append("invalid_evidence_id")
                     continue
 
                 target_unit = evidence_map[ev_id]
@@ -124,6 +138,7 @@ class FactExtractorService:
                 # Rule 2: Validate verbatim_quote grounding in source text
                 if not verbatim_quote or not cls._is_quote_grounded(verbatim_quote, target_unit.clean_text, target_unit.raw_text):
                     rejected_count += 1
+                    rejection_details.append("unsupported_claim")
                     continue
 
                 # Rule 3: Deterministic value & context normalization
@@ -158,20 +173,29 @@ class FactExtractorService:
                 db.add(fact_obj)
                 valid_facts.append(fact_obj)
 
-            doc.extraction_status = "completed"
+            if rejected_count > 0 and valid_facts:
+                doc.extraction_status = "partially_processed"
+                doc.error_message = f"Extracted {len(valid_facts)} valid facts; rejected {rejected_count} ({', '.join(set(rejection_details))})."
+            elif rejected_count > 0 and not valid_facts:
+                doc.extraction_status = "completed"
+                doc.error_message = f"Extraction completed: 0 valid facts extracted; rejected {rejected_count} ({', '.join(set(rejection_details))})."
+            else:
+                doc.extraction_status = "completed"
+                doc.error_message = None
+
             db.commit()
 
             for f in valid_facts:
                 db.refresh(f)
 
-            return "completed", valid_facts, rejected_count
+            return doc.extraction_status, valid_facts, rejected_count
 
         except Exception as e:
             db.rollback()
             doc.extraction_status = "failed"
             doc.error_message = str(e)
             db.commit()
-            raise FactExtractorError(f"Fact extraction failed: {str(e)}")
+            return "failed", [], 0
 
     @staticmethod
     def _is_quote_grounded(quote: str, clean_text: str, raw_text: str) -> bool:

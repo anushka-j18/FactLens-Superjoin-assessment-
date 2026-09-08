@@ -151,7 +151,7 @@ FactLens pairs candidate facts across distinct documents and classifies each rel
 
 ---
 
-## Semantic Candidate Fact Matching & Retrieval
+## Candidate Fact Matching & Retrieval
 
 FactLens uses a 2-stage retrieval strategy to efficiently match candidate facts across documents without quadratic $O(N^2)$ LLM pairwise explosion:
 
@@ -160,6 +160,42 @@ FactLens uses a 2-stage retrieval strategy to efficiently match candidate facts 
 
 ### Candidate Retrieval Endpoint
 - `GET /api/facts/{fact_id}/candidates`: Retrieve ranked candidate matching facts for a given fact with similarity scores and matching criteria metadata.
+
+---
+
+## Reliability, Failure Handling & Honest Auditing
+
+FactLens prioritizes honesty and audit transparency when extraction or reasoning is uncertain:
+
+### 1. Failure Taxonomies
+- **Extraction Failures**:
+  - `no_meaningful_facts`: No structured facts identified in text.
+  - `malformed_llm_output`: LLM response failed schema parsing.
+  - `unsupported_claim`: Verbatim quote not grounded in source page text.
+  - `invalid_evidence_id`: LLM hallucinated an unknown evidence ID.
+- **Reasoning Failures**:
+  - `insufficient_context`: Missing context needed to reconcile values.
+  - `conflicting_temporal_information`: Conflicting or non-overlapping timeframes.
+  - `ambiguous_scope`: Unclear geographic or operating scope.
+
+### 2. Discrete Semantic Confidence Tiers
+Confidence is presented as semantic categories rather than false mathematical probabilities:
+- **`HIGH`** ($\ge 0.85$): Strong evidence grounding and deterministic match.
+- **`MEDIUM`** ($0.50 \le c < 0.85$): Grounded facts with partial context overlap.
+- **`LOW`** ($< 0.50$): Low confidence or ambiguous claims (flags `needs_review: true`).
+
+### 3. Graceful Degradation & Privacy
+- If AI extraction fails, the PDF document remains fully ingested in SQLite DB with evidence units accessible.
+- Structured logger (`app.core.logging`) automatically sanitizes API keys and sensitive tokens (`OPENAI_API_KEY`, `Bearer`, `sk-...`) from log traces.
+
+### 4. System Evaluation Metrics Endpoint
+- `GET /api/evaluation/metrics`: Returns exact audit counts for system health:
+  - `facts_extracted`
+  - `grounded_facts`
+  - `ungrounded_facts`
+  - `relationships_classified`
+  - `uncertain_relationships`
+  - `extraction_failures`
 
 ---
 
@@ -174,3 +210,4 @@ The repository includes two curated starter datasets under `data/starter-dataset
 ## License & Notes
 
 Developed for engineering internship evaluation. All source evidence and reasoning traces are retained strictly for auditability.
+

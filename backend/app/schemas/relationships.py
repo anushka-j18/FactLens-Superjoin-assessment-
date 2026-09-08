@@ -10,6 +10,9 @@ class RelationshipResponse(BaseModel):
     target_fact_id: str
     relationship_type: str  # CORROBORATED | CONTRADICTED | CONTEXTUALLY_RECONCILED | REASONING_FAILURE
     confidence_score: float
+    confidence_level: str = "HIGH"
+    needs_review: bool = False
+    failure_reason: Optional[str] = None
     reasoning_summary: str
     reconciliation_context: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime

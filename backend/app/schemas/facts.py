@@ -23,6 +23,8 @@ class FactResponse(BaseModel):
     is_inferred: bool
     extraction_confidence: float
     extraction_status: str
+    confidence_level: str = "HIGH"
+    needs_review: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
