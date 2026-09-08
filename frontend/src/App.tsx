@@ -79,6 +79,7 @@ export default function App() {
   const handleExtractFacts = async (docId: string) => {
     try {
       await extractDocumentFacts(docId);
+      await analyzeRelationships();
       await loadAllData();
     } catch (err: any) {
       alert(`Extraction failed: ${err.message}`);
