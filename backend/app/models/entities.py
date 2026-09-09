@@ -39,6 +39,7 @@ class Document(Base):
     knowledge_layer: Mapped[Optional["KnowledgeLayer"]] = relationship("KnowledgeLayer", back_populates="documents")
     evidence_units: Mapped[List["EvidenceUnit"]] = relationship("EvidenceUnit", back_populates="document", cascade="all, delete-orphan")
     facts: Mapped[List["Fact"]] = relationship("Fact", back_populates="document", cascade="all, delete-orphan")
+    extraction_runs: Mapped[List["ExtractionRun"]] = relationship("ExtractionRun", back_populates="document", cascade="all, delete-orphan")
 
 
 class EvidenceUnit(Base):
@@ -57,12 +58,31 @@ class EvidenceUnit(Base):
     facts: Mapped[List["Fact"]] = relationship("Fact", back_populates="evidence_unit", cascade="all, delete-orphan")
 
 
+class ExtractionRun(Base):
+    __tablename__ = "extraction_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    facts_created: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rejected_facts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Relationships
+    document: Mapped["Document"] = relationship("Document", back_populates="extraction_runs")
+
+
 class Fact(Base):
     __tablename__ = "facts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_layer_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("knowledge_layers.id", ondelete="SET NULL"), nullable=True, index=True)
     evidence_id: Mapped[str] = mapped_column(String(36), ForeignKey("evidence_units.id", ondelete="CASCADE"), nullable=False, index=True)
+    evidence_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     page_number: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     
     # Core subject-predicate-value triple representation
@@ -84,8 +104,11 @@ class Fact(Base):
     # Metadata & Quality Assurance
     is_inferred: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     extraction_confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    confidence_level: Mapped[str] = mapped_column(String(32), default="HIGH", nullable=False)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     extraction_status: Mapped[str] = mapped_column(String(32), default="grounded", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     document: Mapped["Document"] = relationship("Document", back_populates="facts")

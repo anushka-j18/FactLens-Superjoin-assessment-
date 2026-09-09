@@ -64,17 +64,20 @@ def extract_document_facts(
 @router.get("/api/facts", response_model=FactListResponse)
 def list_facts(
     document_id: Optional[str] = None,
+    knowledge_layer_id: Optional[str] = None,
     subject: Optional[str] = None,
     predicate: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
 ):
-    """List extracted facts with optional filtering by document_id, subject, or predicate."""
+    """List extracted facts with optional filtering by document_id, knowledge_layer_id, subject, or predicate."""
     query = db.query(Fact)
 
     if document_id:
         query = query.filter(Fact.document_id == document_id)
+    if knowledge_layer_id:
+        query = query.filter(Fact.knowledge_layer_id == knowledge_layer_id)
     if subject:
         query = query.filter(Fact.subject.ilike(f"%{subject}%"))
     if predicate:

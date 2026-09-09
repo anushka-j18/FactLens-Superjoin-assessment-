@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Upload, Plus, AlertTriangle, CheckCircle2, X, Loader2, Eye } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Plus, AlertTriangle, CheckCircle2, X, Loader2, Eye, Play } from 'lucide-react';
 import {
   KnowledgeLayerItem,
   DocumentItem,
   fetchKnowledgeLayerDetails,
   uploadDocumentsToKnowledgeLayer,
+  extractKnowledgeLayerFacts,
 } from '../services/api';
 
 interface KnowledgeLayerDetailProps {
@@ -28,6 +29,10 @@ export const KnowledgeLayerDetail: React.FC<KnowledgeLayerDetailProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Batch Extract State
+  const [isExtractingAll, setIsExtractingAll] = useState(false);
+  const [batchResults, setBatchResults] = useState<any[] | null>(null);
+
   const loadDetails = async () => {
     setLoading(true);
     try {
@@ -43,6 +48,20 @@ export const KnowledgeLayerDetail: React.FC<KnowledgeLayerDetailProps> = ({
   useEffect(() => {
     loadDetails();
   }, [knowledgeLayerId]);
+
+  const handleExtractAll = async () => {
+    setIsExtractingAll(true);
+    setBatchResults(null);
+    try {
+      const res = await extractKnowledgeLayerFacts(knowledgeLayerId);
+      setBatchResults(res.results || []);
+      await loadDetails();
+    } catch (err: any) {
+      setError(err.message || 'Batch fact extraction failed.');
+    } finally {
+      setIsExtractingAll(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -130,11 +149,65 @@ export const KnowledgeLayerDetail: React.FC<KnowledgeLayerDetailProps> = ({
           </div>
         </div>
 
-        <button className="btn-primary" onClick={() => setIsUploadModalOpen(true)}>
-          <Plus size={15} />
-          Add PDFs
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {layer.documents && layer.documents.length > 0 && (
+            <button className="btn-secondary" onClick={handleExtractAll} disabled={isExtractingAll}>
+              <Play size={14} />
+              <span>{isExtractingAll ? 'Extracting All Documents...' : 'Extract Facts from All Documents'}</span>
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => setIsUploadModalOpen(true)}>
+            <Plus size={15} />
+            Add PDFs
+          </button>
+        </div>
       </div>
+
+      {/* Batch Extraction Results Banner */}
+      {batchResults && (
+        <div
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: '14px 16px',
+            marginBottom: '20px',
+          }}
+        >
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Batch Fact Extraction Results
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {batchResults.map((r, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  padding: '6px 10px',
+                  backgroundColor: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+              >
+                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{r.filename}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className={`badge ${
+                    r.status === 'completed' ? 'badge-corroborated' :
+                    r.status === 'mock_configured' ? 'badge-warning' : 'badge-contradicted'
+                  }`}>
+                    {r.status}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {r.facts_count} facts extracted ({r.rejected_count} rejected)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Documents List in Knowledge Layer */}
       <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>

@@ -46,7 +46,9 @@ export interface EvidenceUnit {
 export interface FactItem {
   id: string;
   document_id: string;
+  knowledge_layer_id?: string | null;
   evidence_id: string;
+  evidence_ids?: string[];
   page_number: number;
   subject: string;
   predicate: string;
@@ -66,6 +68,7 @@ export interface FactItem {
   confidence_level: 'HIGH' | 'MEDIUM' | 'LOW';
   needs_review: boolean;
   created_at: string;
+  updated_at?: string;
   document?: DocumentItem;
   evidence_unit?: EvidenceUnit;
 }
@@ -265,5 +268,22 @@ export async function uploadDocumentsToKnowledgeLayer(klId: string, files: File[
     throw new Error(errData.detail || `Upload failed with status ${res.status}`);
   }
 
+  return res.json();
+}
+
+export async function fetchKnowledgeLayerFacts(klId: string): Promise<FactItem[]> {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers/${klId}/facts`);
+  if (!res.ok) throw new Error(`Failed to fetch knowledge layer facts: ${res.status}`);
+  return res.json();
+}
+
+export async function extractKnowledgeLayerFacts(klId: string) {
+  const res = await fetch(`${API_BASE}/api/knowledge-layers/${klId}/extract`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Batch extraction failed' }));
+    throw new Error(err.detail || 'Batch extraction failed');
+  }
   return res.json();
 }

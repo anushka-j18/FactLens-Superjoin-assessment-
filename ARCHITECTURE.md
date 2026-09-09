@@ -134,6 +134,30 @@ FactLens evaluates pairs of candidate facts across documents and classifies them
 - **Embedding Abstraction**: `EmbeddingProvider` interface defining `embed_text()` and `embed_batch()`. Supports OpenAI embeddings, HuggingFace sentence-transformers, or custom vector providers.
 ## 7. LLM Rationale & Backend Provenance Validation
 
+```
+Evidence (PyMuPDF Page EvidenceUnits)
+ │
+ ▼
+LLM Fact Extraction (Schema-Guided JSON Generation)
+ │
+ ▼
+Structured Output Validation (Pydantic / JSON Schema Check)
+ │
+ ▼
+Evidence ID Validation (Backend ID Whitelisting & Verbatim Quote Match)
+ │
+ ▼
+Persisted Grounded Facts (Database & Knowledge Layer)
+```
+
+### Key Architectural Principles:
+
+1. **Separation of Ingestion and Fact Extraction**: PDF parsing (layout extraction, text blocks, page splitting) is entirely deterministic and decoupled from semantic fact extraction. This guarantees stable, reproducible evidence units with unique IDs before any LLM is called.
+2. **Mandatory Evidence Grounding**: Every fact must cite exact source evidence. LLMs are not permitted to state floating claims without referencing stored `EvidenceUnit` IDs and verbatim text quotes.
+3. **Prevention of Hallucinated Evidence References**: The backend treats all LLM outputs as unvalidated candidates. The backend matches returned `evidence_ids` against database records and verifies that `verbatim_quote` strings exist in the page text (`clean_text`/`raw_text`). Any hallucinated ID or paraphrased quote results in immediate claim rejection.
+4. **Provider Abstraction Architecture**: The `LLMProvider` abstract base class isolates LLM generation logic. Downstream services call `extract_facts()` through standard interfaces without dependency on specific provider SDKs (OpenAI, Gemini, Anthropic, or Mock).
+5. **Role of Mock Providers**: `MockLLMProvider` provides deterministic rule-based extractions for unit tests without network calls or API keys. In production app runs without an API key, the mock provider safely alerts the user to configure `LLM_PROVIDER=openai` in `.env`.
+
 ### Why LLMs are Used for Fact Extraction
 Unstructured PDF documents (financial filings, annual reports, economic surveys) express facts in highly diverse syntactic structures, tables, footnotes, and narrative prose. LLMs provide:
 1. **Domain-Agnostic Understanding**: Ability to identify arbitrary entity-attribute-value triples without brittle hardcoded regex rules or fixed schemas.

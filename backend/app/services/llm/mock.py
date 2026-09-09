@@ -1,6 +1,12 @@
+import os
 import re
 from typing import Dict, Any, List, Optional
 from app.services.llm.base import LLMProvider
+
+
+class MockProviderError(RuntimeError):
+    """Raised when fact extraction is attempted while LLM_PROVIDER is set to mock in application mode."""
+    pass
 
 
 class MockLLMProvider(LLMProvider):
@@ -9,6 +15,9 @@ class MockLLMProvider(LLMProvider):
     Dynamically extracts grounded facts directly from evidence unit text provided
     in prompts without making network requests or requiring API keys.
     """
+
+    def __init__(self, allow_mock_extraction: bool = False):
+        self.allow_mock_extraction = allow_mock_extraction
 
     def generate_completion(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         return "Mock LLM completion response."
@@ -20,13 +29,20 @@ class MockLLMProvider(LLMProvider):
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """Parse evidence units in prompt context and return structured grounded facts."""
+        is_test = self.allow_mock_extraction or bool(os.environ.get("PYTEST_CURRENT_TEST")) or os.environ.get("TESTING") == "true"
+        
+        if not is_test:
+            raise MockProviderError(
+                "LLM provider is configured as mock. Configure a supported LLM provider to extract facts."
+            )
+
         facts: List[Dict[str, Any]] = []
 
         # Extract evidence ID and text pairs from prompt
         evidence_blocks = re.findall(r'EVIDENCE_ID:\s*([a-f0-9\-]+).*?TEXT:\s*\n?(.*?)(?=\nEVIDENCE_ID:|\Z)', prompt, re.DOTALL)
 
         for ev_id, text in evidence_blocks:
-            lines = text.strip().split('\n')
+            lines = [s.strip() for s in re.split(r'[\n\.]+', text) if s.strip()]
             for line in lines:
                 line_str = line.strip()
                 if not line_str:

@@ -17,27 +17,39 @@ class OpenAILLMProvider(LLMProvider):
         self.max_retries = max_retries
 
     def generate_completion(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate text completion with exponential backoff retries."""
+        """Generate text completion with exponential backoff retries via HTTP API."""
+        if not self.api_key or self.api_key.startswith("your_openai_api_key"):
+            raise ValueError("OpenAI API key is missing or not configured in .env.")
+
         attempts = 0
         last_exception = None
 
         while attempts < self.max_retries:
             try:
                 attempts += 1
-                # If openai library is available and key is configured
-                import openai
-                client = openai.OpenAI(api_key=self.api_key)
+                import httpx
                 messages = []
                 if system_prompt:
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": prompt})
 
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=0.1
-                )
-                return response.choices[0].message.content or ""
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                }
+
+                with httpx.Client(timeout=60.0) as client:
+                    resp = client.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"OpenAI API returned status {resp.status_code}: {resp.text}")
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
                 last_exception = e
                 logger.warning(f"OpenAI completion attempt {attempts}/{self.max_retries} failed: {str(e)}")

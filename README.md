@@ -328,6 +328,30 @@ Web interface will be available at `http://localhost:5173`.
 - Select starter PDFs from `data/starter-datasets/delhivery/` or `data/starter-datasets/india-macroeconomy/`.
 - Click **Start Ingestion** to trigger PDF page parsing, grounded fact extraction, and cross-document relationship matrix generation.
 
+### Fact Extraction
+
+FactLens implements an **evidence-grounded fact extraction pipeline** that converts unstructured document text into structured, verifiable domain claims:
+
+```
+PDF Document
+ └─► PyMuPDF Page Parsing
+      └─► Page Evidence Units (verbatim text & location metadata)
+           └─► LLM Fact Extraction (Schema-guided structured generation)
+                └─► Backend Provenance Validation (Evidence ID & verbatim quote check)
+                     └─► Persisted Grounded Facts & Audit Trail
+```
+
+#### Why Backend Evidence Validation Is Mandatory
+LLMs frequently hallucinate page numbers, invent non-existent quotes, or synthesize synthetic metrics when asked to cite source context directly. FactLens enforces strict backend provenance:
+1. **Evidence ID Whitelisting**: The backend injects exact database `EVIDENCE_ID` strings into the extraction prompt and verifies that every returned fact references a valid, existing `EvidenceUnit`.
+2. **Verbatim Quote Grounding**: The backend deterministically matches `verbatim_quote` strings against source page text (`clean_text` and `raw_text`). Any ungrounded claim is rejected before database insertion.
+3. **Provider Abstraction & Mock Provider Safety**: Supports `openai` (`gpt-4o-mini`), `gemini`, `anthropic`, or `mock`. When `LLM_PROVIDER=mock` in application mode, the system safely alerts the user: *"LLM provider is configured as mock. Configure a supported LLM provider to extract facts."* Deterministic mock outputs are used strictly during automated pytest execution.
+
+#### Configuring LLM Provider
+To enable real AI fact extraction:
+1. Set `LLM_PROVIDER=openai` in `.env`.
+2. Provide your API key in `OPENAI_API_KEY=sk-...`.
+
 ---
 
 ## Environment Variables

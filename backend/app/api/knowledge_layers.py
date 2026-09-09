@@ -159,3 +159,96 @@ def get_knowledge_layer_documents(
             detail=f"Knowledge Layer with ID '{kl_id}' not found."
         )
     return [DocumentResponse.model_validate(d) for d in kl.documents]
+
+
+from app.models.entities import Fact
+from app.schemas.facts import FactResponse
+from app.services.fact_extractor import FactExtractorService
+
+
+@router.get("/{kl_id}/facts", response_model=List[FactResponse])
+def get_knowledge_layer_facts(
+    kl_id: str,
+    db: Session = Depends(get_db),
+):
+    """Retrieve all facts extracted across all documents in a Knowledge Layer."""
+    kl = KnowledgeLayerService.get_knowledge_layer(db, kl_id)
+    if not kl:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge Layer with ID '{kl_id}' not found."
+        )
+
+    doc_ids = [d.id for d in kl.documents]
+    if not doc_ids:
+        return []
+
+    return (
+        db.query(Fact)
+        .filter(Fact.document_id.in_(doc_ids))
+        .order_by(Fact.created_at.asc())
+        .all()
+    )
+
+
+@router.post("/{kl_id}/extract")
+def extract_knowledge_layer_facts(
+    kl_id: str,
+    db: Session = Depends(get_db),
+):
+    """Batch extract grounded facts for all documents in a Knowledge Layer.
+    
+    Processes documents independently so that failure in one document does not 
+    wipe or impact facts extracted from successful documents.
+    """
+    kl = KnowledgeLayerService.get_knowledge_layer(db, kl_id)
+    if not kl:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge Layer with ID '{kl_id}' not found."
+        )
+
+    if not kl.documents:
+        return {
+            "knowledge_layer_id": kl_id,
+            "status": "completed",
+            "total_documents": 0,
+            "results": [],
+        }
+
+    results = []
+    total_facts = 0
+
+    for doc in kl.documents:
+        try:
+            ext_status, facts, rejected_count = FactExtractorService.extract_facts_from_document(
+                db=db,
+                document_id=doc.id,
+            )
+            total_facts += len(facts)
+            results.append({
+                "document_id": doc.id,
+                "filename": doc.original_filename,
+                "status": ext_status,
+                "facts_count": len(facts),
+                "rejected_count": rejected_count,
+                "error_message": doc.error_message,
+            })
+        except Exception as e:
+            results.append({
+                "document_id": doc.id,
+                "filename": doc.original_filename,
+                "status": "failed",
+                "facts_count": 0,
+                "rejected_count": 0,
+                "error_message": str(e),
+            })
+
+    return {
+        "knowledge_layer_id": kl_id,
+        "status": "completed",
+        "total_documents": len(kl.documents),
+        "total_facts_extracted": total_facts,
+        "results": results,
+    }
+

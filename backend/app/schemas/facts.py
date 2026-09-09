@@ -6,7 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class FactResponse(BaseModel):
     id: str
     document_id: str
+    knowledge_layer_id: Optional[str] = None
     evidence_id: str
+    evidence_ids: List[str] = Field(default_factory=list)
     page_number: int
     subject: str
     predicate: str
@@ -26,6 +28,7 @@ class FactResponse(BaseModel):
     confidence_level: str = "HIGH"
     needs_review: bool = False
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,3 +44,20 @@ class FactExtractionResponse(BaseModel):
     extracted_facts_count: int
     rejected_facts_count: int
     facts: List[FactResponse]
+    run_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class ExtractionRunResponse(BaseModel):
+    id: str
+    document_id: str
+    status: str
+    provider: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    facts_created: int
+    rejected_facts: int
+
+    model_config = ConfigDict(from_attributes=True)
+

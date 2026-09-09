@@ -1,10 +1,12 @@
 import re
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.entities import Document, EvidenceUnit, Fact
+from app.models.entities import Document, EvidenceUnit, Fact, ExtractionRun
 from app.services.normalizer import FactNormalizer
 from app.services.llm import get_llm_provider, LLMProvider
+from app.services.llm.mock import MockProviderError
 
 
 class FactExtractorError(Exception):
@@ -35,6 +37,17 @@ class FactExtractorService:
         db.commit()
 
         provider = llm_provider or get_llm_provider()
+        provider_name = provider.__class__.__name__
+
+        # Initialize ExtractionRun record
+        run = ExtractionRun(
+            document_id=document_id,
+            status="processing",
+            provider=provider_name,
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(run)
+        db.commit()
 
         # Retrieve evidence units for document
         evidence_units = (
@@ -45,6 +58,9 @@ class FactExtractorService:
         )
 
         if not evidence_units:
+            run.status = "failed"
+            run.error_message = "No evidence units found for document."
+            run.completed_at = datetime.now(timezone.utc)
             doc.extraction_status = "failed"
             doc.error_message = "No evidence units found for document."
             db.commit()
@@ -78,6 +94,7 @@ class FactExtractorService:
                         "type": "object",
                         "properties": {
                             "evidence_id": {"type": "string"},
+                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
                             "subject": {"type": "string"},
                             "predicate": {"type": "string"},
                             "value": {"type": "string"},
@@ -92,28 +109,44 @@ class FactExtractorService:
                             "is_inferred": {"type": "boolean"},
                             "extraction_confidence": {"type": "number"},
                         },
-                        "required": ["evidence_id", "subject", "predicate", "value", "verbatim_quote"],
+                        "required": ["subject", "predicate", "value", "verbatim_quote"],
                     }
                 }
             }
         }
 
         try:
-            # Delete any existing facts for re-extraction
+            # Delete any existing facts for re-extraction idempotency
             db.query(Fact).filter(Fact.document_id == document_id).delete()
             db.commit()
 
             # Execute LLM structured extraction
             try:
                 raw_result = provider.generate_structured(prompt, schema)
+            except MockProviderError as mpe:
+                msg = str(mpe)
+                run.status = "failed"
+                run.error_message = msg
+                run.completed_at = datetime.now(timezone.utc)
+                doc.extraction_status = "mock_configured"
+                doc.error_message = msg
+                db.commit()
+                return "mock_configured", [], 0
             except Exception as llm_err:
+                msg = f"Extraction failure [malformed_llm_output]: {str(llm_err)}"
+                run.status = "failed"
+                run.error_message = msg
+                run.completed_at = datetime.now(timezone.utc)
                 doc.extraction_status = "failed"
-                doc.error_message = f"Extraction failure [malformed_llm_output]: {str(llm_err)}"
+                doc.error_message = msg
                 db.commit()
                 return "failed", [], 0
 
             candidate_facts = raw_result.get("facts", [])
             if not candidate_facts:
+                run.status = "completed"
+                run.facts_created = 0
+                run.completed_at = datetime.now(timezone.utc)
                 doc.extraction_status = "no_facts_found"
                 doc.error_message = "Extraction status [no_meaningful_facts]: No structural facts were identified by LLM."
                 db.commit()
@@ -124,19 +157,30 @@ class FactExtractorService:
             rejection_details = []
 
             for cf in candidate_facts:
-                ev_id = cf.get("evidence_id")
+                # Handle evidence_id vs evidence_ids
+                ev_ids = cf.get("evidence_ids") or []
+                if not ev_ids and cf.get("evidence_id"):
+                    ev_ids = [cf["evidence_id"]]
+
                 verbatim_quote = cf.get("verbatim_quote", "").strip()
 
+                # Filter valid evidence unit objects
+                valid_units = [evidence_map[eid] for eid in ev_ids if eid in evidence_map]
+
                 # Rule 1: Validate evidence_id existence in backend
-                if not ev_id or ev_id not in evidence_map:
+                if not valid_units:
                     rejected_count += 1
                     rejection_details.append("invalid_evidence_id")
                     continue
 
-                target_unit = evidence_map[ev_id]
+                primary_unit = valid_units[0]
 
                 # Rule 2: Validate verbatim_quote grounding in source text
-                if not verbatim_quote or not cls._is_quote_grounded(verbatim_quote, target_unit.clean_text, target_unit.raw_text):
+                is_grounded = any(
+                    cls._is_quote_grounded(verbatim_quote, u.clean_text, u.raw_text)
+                    for u in valid_units
+                )
+                if not verbatim_quote or not is_grounded:
                     rejected_count += 1
                     rejection_details.append("unsupported_claim")
                     continue
@@ -150,10 +194,23 @@ class FactExtractorService:
                 temp_dict = FactNormalizer.normalize_temporal_context(cf.get("temporal_context"))
                 canonical_temp = temp_dict["canonical"] or cf.get("temporal_context")
 
+                confidence = float(cf.get("extraction_confidence", 1.0))
+                if confidence >= 0.85:
+                    conf_level = "HIGH"
+                elif confidence >= 0.60:
+                    conf_level = "MEDIUM"
+                else:
+                    conf_level = "LOW"
+
+                is_inferred = bool(cf.get("is_inferred", False))
+                needs_review = conf_level == "LOW" or is_inferred
+
                 fact_obj = Fact(
                     document_id=document_id,
-                    evidence_id=target_unit.id,
-                    page_number=target_unit.page_number,
+                    knowledge_layer_id=doc.knowledge_layer_id,
+                    evidence_id=primary_unit.id,
+                    evidence_ids=[u.id for u in valid_units],
+                    page_number=primary_unit.page_number,
                     subject=str(cf.get("subject", "General")).strip(),
                     predicate=str(cf.get("predicate", "fact")).strip(),
                     value=raw_val,
@@ -166,8 +223,10 @@ class FactExtractorService:
                     operating_scope=cf.get("operating_scope"),
                     qualifiers=cf.get("qualifiers", {}),
                     verbatim_quote=verbatim_quote,
-                    is_inferred=bool(cf.get("is_inferred", False)),
-                    extraction_confidence=float(cf.get("extraction_confidence", 1.0)),
+                    is_inferred=is_inferred,
+                    extraction_confidence=confidence,
+                    confidence_level=conf_level,
+                    needs_review=needs_review,
                     extraction_status="grounded",
                 )
                 db.add(fact_obj)
@@ -183,6 +242,11 @@ class FactExtractorService:
                 doc.extraction_status = "completed"
                 doc.error_message = None
 
+            run.status = "completed" if valid_facts else "no_facts_found"
+            run.facts_created = len(valid_facts)
+            run.rejected_facts = rejected_count
+            run.completed_at = datetime.now(timezone.utc)
+
             db.commit()
 
             for f in valid_facts:
@@ -192,6 +256,9 @@ class FactExtractorService:
 
         except Exception as e:
             db.rollback()
+            run.status = "failed"
+            run.error_message = str(e)
+            run.completed_at = datetime.now(timezone.utc)
             doc.extraction_status = "failed"
             doc.error_message = str(e)
             db.commit()
