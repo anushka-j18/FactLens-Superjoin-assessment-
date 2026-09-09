@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, FileText, CheckSquare, Play, AlertTriangle, Info } from 'lucide-react';
-import { fetchDocumentDetails, extractDocumentFacts, DocumentItem, EvidenceUnit, FactItem } from '../services/api';
+import { fetchDocumentDetails, fetchDocumentFacts, extractDocumentFacts, DocumentItem, EvidenceUnit, FactItem } from '../services/api';
 import { FactDetailModal } from './FactDetailModal';
 
 interface DocumentDetailProps {
@@ -22,9 +22,10 @@ export const DocumentDetail: React.FC<DocumentDetailProps> = ({ documentId, onBa
     setLoading(true);
     try {
       const data = await fetchDocumentDetails(documentId);
+      const docFacts = await fetchDocumentFacts(documentId).catch(() => []);
       setDoc(data);
       setEvidenceUnits(data.evidence_units || []);
-      setFacts(data.facts || []);
+      setFacts(docFacts.length > 0 ? docFacts : (data.facts || []));
       if (data.error_message) {
         setExtractionMessage(data.error_message);
       }

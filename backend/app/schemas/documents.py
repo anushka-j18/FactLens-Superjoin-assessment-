@@ -31,8 +31,12 @@ class DocumentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+from app.schemas.facts import FactResponse
+
+
 class DocumentDetailResponse(DocumentResponse):
     evidence_units: List[EvidenceUnitResponse] = []
+    facts: List[FactResponse] = []
 
 
 class DocumentListResponse(BaseModel):
