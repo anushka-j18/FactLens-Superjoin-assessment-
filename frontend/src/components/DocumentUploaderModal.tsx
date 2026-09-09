@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, X, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
-import { uploadDocument, extractDocumentFacts, analyzeRelationships, DocumentItem } from '../services/api';
+import { uploadDocument, fetchDocumentDetails, extractDocumentFacts, analyzeRelationships, DocumentItem } from '../services/api';
 
 interface DocumentUploaderModalProps {
   isOpen: boolean;
@@ -55,7 +55,16 @@ export const DocumentUploaderModal: React.FC<DocumentUploaderModalProps> = ({
     setStep3('idle');
 
     try {
-      const doc = await uploadDocument(file);
+      let doc: DocumentItem;
+      try {
+        doc = await uploadDocument(file);
+      } catch (err: any) {
+        if (err.existing_document_id) {
+          doc = await fetchDocumentDetails(err.existing_document_id);
+        } else {
+          throw err;
+        }
+      }
       setStep1('completed');
 
       setStep2('in_progress');
@@ -75,7 +84,9 @@ export const DocumentUploaderModal: React.FC<DocumentUploaderModalProps> = ({
       if (step1 === 'in_progress') setStep1('failed');
       else if (step2 === 'in_progress') setStep2('failed');
       else if (step3 === 'in_progress') setStep3('failed');
-      setErrorMessage(err.message || 'An error occurred during ingestion.');
+
+      const rawMsg = err?.message || 'An error occurred during ingestion.';
+      setErrorMessage(typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg));
     }
   };
 

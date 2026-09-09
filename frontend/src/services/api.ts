@@ -113,6 +113,23 @@ export interface CandidateMatchResponse {
   candidates: CandidateMatch[];
 }
 
+export function parseErrorDetail(errData: any, fallbackMessage: string): string {
+  if (!errData) return fallbackMessage;
+  if (typeof errData.detail === 'string') return errData.detail;
+  if (Array.isArray(errData.detail)) {
+    return errData.detail
+      .map((item: any) => (typeof item === 'string' ? item : item.msg || item.message || JSON.stringify(item)))
+      .join('; ');
+  }
+  if (errData.detail && typeof errData.detail === 'object') {
+    if (errData.detail.message) return errData.detail.message;
+    if (errData.detail.error) return errData.detail.error;
+    return JSON.stringify(errData.detail);
+  }
+  if (typeof errData.message === 'string') return errData.message;
+  return fallbackMessage;
+}
+
 const API_BASE = '';
 
 export async function fetchHealth() {
@@ -132,7 +149,13 @@ export async function uploadDocument(file: File): Promise<DocumentItem> {
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ detail: 'Upload failed' }));
-    throw new Error(errData.detail || `Upload failed with status ${res.status}`);
+    const msg = parseErrorDetail(errData, `Upload failed with status ${res.status}`);
+    const err: any = new Error(msg);
+    if (res.status === 409 && errData?.detail?.existing_document_id) {
+      err.existing_document_id = errData.detail.existing_document_id;
+    }
+    err.status = res.status;
+    throw err;
   }
 
   return res.json();
