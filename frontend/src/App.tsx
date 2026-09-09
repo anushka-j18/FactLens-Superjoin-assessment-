@@ -29,7 +29,7 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'knowledge-layers' | 'documents' | 'facts' | 'relationships' | 'evaluation'
-  >('knowledge-layers');
+  >('overview');
 
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [selectedKnowledgeLayerId, setSelectedKnowledgeLayerId] = useState<string | null>(null);
