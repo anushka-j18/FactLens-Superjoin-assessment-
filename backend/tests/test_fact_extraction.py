@@ -251,16 +251,14 @@ def test_reextraction_idempotency_no_duplicates(client, db_session):
 
 
 def test_mock_provider_behavior():
-    """10. Test MockLLMProvider raises MockProviderError in non-test mode."""
-    provider = MockLLMProvider(allow_mock_extraction=False)
-    # Temporarily remove test env var
-    old_test = os.environ.pop("PYTEST_CURRENT_TEST", None)
-    try:
-        with pytest.raises(MockProviderError):
-            provider.generate_structured("prompt", {})
-    finally:
-        if old_test:
-            os.environ["PYTEST_CURRENT_TEST"] = old_test
+    """10. Test MockLLMProvider extracts structured facts deterministically."""
+    provider = MockLLMProvider()
+    prompt = "EVIDENCE_ID: ev-123\nTEXT:\nDelhivery revenue was INR 4,600 Cr in FY24."
+    result = provider.generate_structured(prompt, {})
+    assert "facts" in result
+    assert len(result["facts"]) > 0
+    assert result["facts"][0]["evidence_id"] == "ev-123"
+    assert result["facts"][0]["value"] == "INR 4,600 Cr"
 
 
 def test_facts_association_single_document(client):

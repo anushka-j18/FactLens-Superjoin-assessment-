@@ -26,9 +26,7 @@ export const DocumentDetail: React.FC<DocumentDetailProps> = ({ documentId, onBa
       setDoc(data);
       setEvidenceUnits(data.evidence_units || []);
       setFacts(docFacts.length > 0 ? docFacts : (data.facts || []));
-      if (data.error_message) {
-        setExtractionMessage(data.error_message);
-      }
+      setExtractionMessage(data.error_message || null);
     } catch (err) {
       console.error('Failed to load document details', err);
     } finally {

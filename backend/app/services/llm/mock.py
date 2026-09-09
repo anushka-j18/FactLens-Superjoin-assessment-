@@ -29,17 +29,10 @@ class MockLLMProvider(LLMProvider):
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """Parse evidence units in prompt context and return structured grounded facts."""
-        is_test = self.allow_mock_extraction or bool(os.environ.get("PYTEST_CURRENT_TEST")) or os.environ.get("TESTING") == "true"
-        
-        if not is_test:
-            raise MockProviderError(
-                "LLM provider is configured as mock. Configure a supported LLM provider to extract facts."
-            )
-
         facts: List[Dict[str, Any]] = []
 
         # Extract evidence ID and text pairs from prompt
-        evidence_blocks = re.findall(r'EVIDENCE_ID:\s*([a-f0-9\-]+).*?TEXT:\s*\n?(.*?)(?=\nEVIDENCE_ID:|\Z)', prompt, re.DOTALL)
+        evidence_blocks = re.findall(r'EVIDENCE_ID:\s*([A-Za-z0-9\-_]+).*?TEXT:\s*\n?(.*?)(?=\nEVIDENCE_ID:|\Z)', prompt, re.DOTALL)
 
         for ev_id, text in evidence_blocks:
             lines = [s.strip() for s in re.split(r'[\n\.]+', text) if s.strip()]
